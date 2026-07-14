@@ -2,10 +2,16 @@
 set -e
 set -v
 
-CC="riscv64-unknown-elf-gcc"
-LD="riscv64-unknown-elf-ld"
-OBJCOPY="riscv64-unknown-elf-objcopy"
-OBJDUMP="riscv64-unknown-elf-objdump"
+# Toolchain prefix. Homebrew installs the bare-metal RISC-V GNU toolchain as
+# "riscv64-elf-*" (riscv64-elf-binutils / riscv64-elf-gcc). The official
+# riscv-gnu-toolchain source build uses "riscv64-unknown-elf-*" instead —
+# just change this one line if you use that.
+PREFIX="${RISCV_PREFIX:-riscv64-elf-}"
+
+CC="${PREFIX}gcc"
+LD="${PREFIX}ld"
+OBJCOPY="${PREFIX}objcopy"
+OBJDUMP="${PREFIX}objdump"
 
 COMMON_FLAGS="
 -march=rv32i
