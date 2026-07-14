@@ -1,2 +1,7 @@
 .DS_Store
 build/
+
+# Generated ROM artifacts (produced by build.sh from test.S)
+rom.elf
+rom.bin
+rom.asm

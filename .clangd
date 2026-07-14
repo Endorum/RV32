@@ -1,0 +1,3 @@
+# Point clangd (nvim LSP) at the CMake-generated compile database.
+# Run `cmake -B build` once so build/compile_commands.json exists.
+CompilationDatabase: build
