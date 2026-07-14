@@ -42,6 +42,12 @@ public:
         }
     }
 
+    void loadRom(u8* rom, size_t& size){
+        for(int i=0;i<size;i++){
+            mem[i] = rom[i];
+        }
+    }
+
 private:
     u8* mem = nullptr;
 };
@@ -79,9 +85,7 @@ public:
     }
     
     void write_reg(u32 idx, u32 value) { 
-        if(idx != 0) { 
-            regfile[idx] = value; 
-        } 
+        if (idx != 0) regfile[idx] = value; 
     }
 
     u32 read_freg(u32 idx) const { 
@@ -90,6 +94,38 @@ public:
     
     void write_freg(u32 idx, f32 value) { 
         fregfile[idx] = value; 
+    }
+
+    void reset(){
+        for(int i=0;i<32;i++) regfile[i] = 0;
+        for(int i=0;i<32;i++) fregfile[i] = 0;
+    }
+
+    void print(){
+        printf("Register File:\n");
+        printf("    x0:     %08X, x1/ra:  %08X, x2/sp:  %08X, x3/gp:  %08X\n",
+        read_reg(0), read_reg(1), read_reg(2), read_reg(3));
+
+        printf("    x4/tp:  %08X, x5/t0:  %08X, x6/t1:  %08X, x7/t2:  %08X\n",
+            read_reg(4), read_reg(5), read_reg(6), read_reg(7));
+
+        printf("    x8/s0:  %08X, x9/s1:  %08X, x10/a0: %08X, x11/a1: %08X\n",
+            read_reg(8), read_reg(9), read_reg(10), read_reg(11));
+
+        printf("    x12/a2: %08X, x13/a3: %08X, x14/a4: %08X, x15/a5: %08X\n",
+            read_reg(12), read_reg(13), read_reg(14), read_reg(15));
+
+        printf("    x16/a6: %08X, x17/a7: %08X, x18/s2: %08X, x19/s3: %08X\n",
+            read_reg(16), read_reg(17), read_reg(18), read_reg(19));
+
+        printf("    x20/s4: %08X, x21/s5: %08X, x22/s6: %08X, x23/s7: %08X\n",
+            read_reg(20), read_reg(21), read_reg(22), read_reg(23));
+
+        printf("    x24/s8: %08X, x25/s9: %08X,    s10: %08X,    s11: %08X\n",
+            read_reg(24), read_reg(25), read_reg(26), read_reg(27));
+
+        printf("    x28/t3: %08X, x29/t4: %08X, x30/t5: %08X, x31/t6: %08X\n",
+            read_reg(28), read_reg(29), read_reg(30), read_reg(31));
     }
     
 
@@ -100,6 +136,25 @@ private:
 };
 
 
+struct IF_ID{
+    Instruction instr_cache;
+};
+
+struct ID_EX{
+    u32 src1_value;
+    u32 src2_value;
+};  
+
+struct EX_MEM{
+    u32 alu_result;
+    u32 link_value;
+    bool branch;
+};
+
+struct MEM_WB{
+    u32 mem_result;
+};
+
 // the package which contains every subpart
 class RV32{
 public:
@@ -107,11 +162,10 @@ public:
 
     void attach_bus(Bus* bus) { this->bus = bus; }
 
-    CPUState get_state(){ return state; }
-    RegFile get_regfile(){ return rf; }
-    u32 get_pc(){ return pc; }
-    CSRUnit get_csr(){ return csr; }
-    Bus* get_bus(){ return bus; }  
+    void reset(){
+        pc = 0;
+        rf.reset();
+    }
     
     u32 load(u32 addr, u32 size) { return bus->read(addr, size); }
     void store(u32 addr, u32 size, u32 value) { bus->write(addr, size, value); }
@@ -124,7 +178,9 @@ public:
         WB();
     }
 
-private:
+    void debug();
+
+
     // All architectual state: mode, pending_ex, etc.
     CPUState state;
     
@@ -140,17 +196,26 @@ private:
     
     Bus* bus = nullptr;
     
-    Instruction instr_cache;
     void IF();
     
-    u32 src1_value, src2_value;
+    Instruction instr_cache;
+    
     void ID();
+
+    u32 src1_value;
+    u32 src2_value;
+    
+    void EX();
     
     u32 alu_result;
     u32 link_value;
-    void EX();
+    bool branch;
+    bool jump;
     
     void MEM();
+
+    u32 mem_result;
+
     void WB();
     
 };

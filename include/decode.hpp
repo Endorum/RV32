@@ -47,7 +47,23 @@ public:
 
     std::string mnemonic;
 
+    void print(){
 
+        printf(
+            "word: %08X\naddr: %08X\nopc: %02X\nrs2: %d,rs1: %d rd: %d\nfunct3: %02X\nfunct7: %02X\nimm: %08X\nmnemonic: %s\n",
+            instr_word, 
+            instr_addr, 
+            opc, 
+            rs2, 
+            rs1,
+            rd,
+            funct3,
+            funct7,
+            imm,
+            mnemonic.c_str()
+
+        );
+    }
 };
 
 

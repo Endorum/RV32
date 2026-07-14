@@ -30,21 +30,21 @@ InstructionFormat get_format(u8 opc){
             exit(1);
             break;
 
-        case 0b0110011: return InstructionFormat::R;
+        case ALU_R: return InstructionFormat::R;
 
-        case 0b0010011: 
-        case 0b0000011: 
-        case 0b1100111: 
-        case 0b1110011: return InstructionFormat::I;
+        case ALU_I: 
+        case LOAD: 
+        case JALR: 
+        case ECALL: return InstructionFormat::I;
 
-        case 0b0100011: return InstructionFormat::S;
+        case STORE: return InstructionFormat::S;
 
-        case 0b1100011: return InstructionFormat::B;
+        case BRANCH: return InstructionFormat::B;
         
-        case 0b0110111:
-        case 0b0010111: return InstructionFormat::U;
+        case LUI:
+        case AUIPC: return InstructionFormat::U;
 
-        case 0b1101111: return InstructionFormat::J;
+        case JAL: return InstructionFormat::J;
     }
 }
 

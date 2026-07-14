@@ -59,3 +59,17 @@ enum class CSR_ADDR : u16{
     hpmcounter17h = 0xC91, hpmcounter18h = 0xC92, hpmcounter19h = 0xC93, hpmcounter20h = 0xC94, hpmcounter21h = 0xC95, hpmcounter22h = 0xC96, hpmcounter23h = 0xC97, hpmcounter24h = 0xC98, hpmcounter25h = 0xC99, hpmcounter26h = 0xC9A, hpmcounter27h = 0xC9B, hpmcounter28h = 0xC9C, hpmcounter29h = 0xC9D, hpmcounter30h = 0xC9E, hpmcounter31h = 0xC9F, scountovf  = 0xDA0,
     hgeip = 0xE12, mvendorid = 0xF11, marchid = 0xF12, mimpid = 0xF13, mhartid = 0xF14, mconfigptr = 0xF15,
 };  
+
+
+typedef enum{
+    ALU_R  = 0b0110011,
+    ALU_I  = 0b0010011,
+    LOAD   = 0b0000011,
+    STORE  = 0b0100011,
+    BRANCH = 0b1100011,
+    JAL    = 0b1101111,
+    JALR   = 0b1100111,
+    LUI    = 0b0110111,
+    AUIPC  = 0b0010111,
+    ECALL  = 0b1110011,
+}INSTR_OPCODE;

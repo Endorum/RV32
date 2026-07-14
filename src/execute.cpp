@@ -51,13 +51,14 @@ u32 alu_i_type(u32 src1, Instruction *instr) {
 
     u32 shmt = imm & 0x1F;
 
-    u32 funct7 = extract_bits(uimm, 5, 11);
+    u32 funct7 = (imm >> 5) & 0x7F;
 
     switch(instr->opc){
-        default:break;
+        default:
+            break;
 
 
-        case 0b0010011: // Arithmetic Imm
+        case ALU_I: // Arithmetic Imm
 
             switch(instr->funct3){
                 default:break;
@@ -69,7 +70,7 @@ u32 alu_i_type(u32 src1, Instruction *instr) {
                 case 0x4: instr->mnemonic = "xori";  return src1 ^ imm;
 
                 case 0x5:
-                    if( (imm >> 10) & 1 ){ // check bit 10 of imm -> srai
+                    if (funct7 == 0x20) { // 0b0100000
                         instr->mnemonic = "srai";
                         return (i32(src1)) >> shmt;
                     } else {
@@ -85,9 +86,23 @@ u32 alu_i_type(u32 src1, Instruction *instr) {
             break; 
 
 
-        case 0b0000011: return s_src1 + imm; // Load ops
-        case 0b1100111: return s_src1 + imm; // jalr target
-        case 0b1110011: // ecall or ebreak
+        case LOAD:
+            switch(instr->funct3) {
+                case 0x0: instr->mnemonic = "lb";  return s_src1 + imm;
+                case 0x1: instr->mnemonic = "lh";  return s_src1 + imm;
+                case 0x2: instr->mnemonic = "lw";  return s_src1 + imm;
+                case 0x4: instr->mnemonic = "lbu"; return src1   + imm;
+                case 0x5: instr->mnemonic = "lhu"; return src1   + imm;
+
+
+                default:
+                    printf("Invalid load funct3\n"); exit(1);
+            }
+            
+
+        case JALR: instr->mnemonic = "jalr"; return (s_src1 + imm) & ~1; // jalr target
+
+        case ECALL: // ecall or ebreak
             if(imm == 0x0){
                 instr->mnemonic = "ecall";
             }else if(imm == 0x1){
@@ -100,5 +115,48 @@ u32 alu_i_type(u32 src1, Instruction *instr) {
     printf("ERROR: Unknown opcode value in alu_i_type: %02X\n",instr->opc);
     exit(1);
 
-    return u32();
+    return 0;
+}
+
+bool evaluate_branch(u32 src1, u32 src2, Instruction *instr) {
+
+    i32 sA = static_cast<i32>(src1);
+    i32 sB = static_cast<i32>(src2);
+
+    u32 uA = src1;
+    u32 uB = src2;
+    
+    switch(instr->funct3){
+        default:break;
+
+        case 0x0: instr->mnemonic = "beq";  return sA == sB;
+        case 0x1: instr->mnemonic = "bne";  return sA != sB;
+        case 0x4: instr->mnemonic = "blt";  return sA <  sB;
+        case 0x5: instr->mnemonic = "bge";  return sA >= sB;
+        case 0x6: instr->mnemonic = "bltu"; return uA <  uB;
+        case 0x7: instr->mnemonic = "bgeu"; return uA >= uB;
+
+    }
+
+
+    printf("ERROR: Unknown funct3 value in evaluate_branch: %02X\n",instr->funct3);
+    exit(1);
+
+    return false;
+}
+
+u32 compute_u_type(Instruction *instr) {
+
+    switch(instr->opc){
+        default:break;
+
+        case LUI: instr->mnemonic = "lui";   return instr->imm << 12; // Load Upper imm
+        case AUIPC: instr->mnemonic = "auipc"; return instr->instr_addr + (instr->imm << 12); // add upper imm to pc
+
+    }
+
+    printf("ERROR: Unknown opcode value in compute_u_type: %02X\n",instr->opc);
+    exit(1);
+
+    return 0;
 }
