@@ -2,12 +2,22 @@
 #define CONFIG_HPP
 
 #include <cstdint>
+#include <format>
 #include <string>
 #include <vector>
 
-extern bool B_debug;
-extern bool B_step;
-extern std::vector<uint32_t> V_u32_breakpoints;
+inline std::string breakpoints_str(const std::vector<uint32_t> &bp) {
+  std::string out = " [";
+
+  for (auto v : bp) {
+    out += std::format("0x{:x}, ", v);
+  }
+
+  // remove last ,
+  out = out.substr(0, out.length() - 2);
+
+  return out + "]";
+}
 
 struct Config {
   bool A = false; /* Atomic instructions */
@@ -28,15 +38,28 @@ struct Config {
   bool V = false; /* Vector operations */
 
   std::string str() {
-    return " A: " + std::to_string(A) + " B: " + std::to_string(B) +
-           " C: " + std::to_string(C) + " D: " + std::to_string(D) +
-           " F: " + std::to_string(F) + " G: " + std::to_string(G) +
-           " H: " + std::to_string(H) + " J: " + std::to_string(J) +
-           " L: " + std::to_string(L) + " M: " + std::to_string(M) +
-           " N: " + std::to_string(N) + " P: " + std::to_string(P) +
-           " Q: " + std::to_string(Q) + " S: " + std::to_string(S) +
-           " T: " + std::to_string(T) + " V: " + std::to_string(V);
+    return " A: " + std::to_string(A) + " B: " + std::to_string(B) + "\n" +
+           " C: " + std::to_string(C) + " D: " + std::to_string(D) + "\n" +
+           " F: " + std::to_string(F) + " G: " + std::to_string(G) + "\n" +
+           " H: " + std::to_string(H) + " J: " + std::to_string(J) + "\n" +
+           " L: " + std::to_string(L) + " M: " + std::to_string(M) + "\n" +
+           " N: " + std::to_string(N) + " P: " + std::to_string(P) + "\n" +
+           " Q: " + std::to_string(Q) + " S: " + std::to_string(S) + "\n" +
+           " T: " + std::to_string(T) + " V: " + std::to_string(V) + "\n" +
+           " DEBUG: " + std::to_string(B_debug) +
+           " STEP: " + std::to_string(B_step) + "\n" + " breakpoints: \n" +
+           breakpoints_str(V_u32_breakpoints) + "\n" +
+           " Firmware: " + firmware_path + "\n Harddisk: " + harddisk_path +
+           "\n Floppydisk: " + floppydisk_path + "\n";
   }
+  bool B_debug;
+  bool B_step;
+
+  std::vector<uint32_t> V_u32_breakpoints;
+
+  std::string firmware_path;
+  std::string harddisk_path;
+  std::string floppydisk_path;
 };
 
 extern Config T_config;

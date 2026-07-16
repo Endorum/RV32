@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -49,17 +50,14 @@ void parseArgument(CLIArgument arg) {
 
   if (arg.S_type == "m") {
     parseModules(arg.S_value);
-    std::cout << "New Config: " << T_config.str() << std::endl;
   }
 
   else if (arg.S_type == "d") {
-    B_debug = S_to_B(arg.S_value);
-    std::cout << "Changed debug: '" + arg.S_value + "'" << std::endl;
+    T_config.B_debug = S_to_B(arg.S_value);
   }
 
   else if (arg.S_type == "s") {
-    B_step = S_to_B(arg.S_value);
-    std::cout << "Changed step: '" + arg.S_value + "'" << std::endl;
+    T_config.B_step = S_to_B(arg.S_value);
   } else if (arg.S_type == "b") {
 
     uint32_t bp = 0;
@@ -69,14 +67,19 @@ void parseArgument(CLIArgument arg) {
       Error<std::invalid_argument>("Invalid breakpoint address");
     }
 
-    V_u32_breakpoints.push_back(bp);
+    T_config.V_u32_breakpoints.push_back(bp);
 
-    std::cout << "Added breakpoint '" + arg.S_value + "'" << std::endl;
   }
 
-  else if (arg.S_type == "ffw") {
-  } else if (arg.S_type == "fhd") {
-  } else if (arg.S_type == "ffd") {
+  else if (arg.S_type[0] == 'f') {
+    std::string filename = arg.S_value;
+    if (arg.S_type == "ffw") {
+      T_config.firmware_path = filename;
+    } else if (arg.S_type == "fhd") {
+      T_config.harddisk_path = filename;
+    } else if (arg.S_type == "ffd") {
+      T_config.floppydisk_path = filename;
+    }
   }
 
   else {
@@ -111,6 +114,8 @@ int main(int argc, char **argv) {
                                    std::string(argv[i]) + "'");
     }
   }
+
+  std::cout << "Configuration: \n" << T_config.str() << std::endl;
 
   return 0;
 }

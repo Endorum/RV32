@@ -1,10 +1,7 @@
 #include "../include/CONFIG.hpp"
 #include "../include/UTILS.hpp"
 
-bool B_debug;
-bool B_step;
 Config T_config;
-std::vector<uint32_t> V_u32_breakpoints;
 
 void parseModules(std::string str) {
   // something like imf -> integer, multiply and divide, floating point ops
