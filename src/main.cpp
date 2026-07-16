@@ -1,12 +1,20 @@
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <exception>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "../include/CONFIG.hpp"
+#include "../include/UTILS.hpp"
 
 void showUsage(std::string argv0) {
   std::cout << "Usage:\n" << std::endl;
   std::cout << argv0 << "   [-mdsb] [options] " << std::endl;
-  std::cout << "-m=[amf...]       : extensions | specify one or more modues, "
-               "currenty available: none"
+  std::cout << "-m=[amf...]       : extensions | specify one or more modules, "
+               "currenty available: i"
             << std::endl;
   std::cout
       << "-d=[true/false]   : debug mode | enables or disables Debug mode "
@@ -27,6 +35,54 @@ void showUsage(std::string argv0) {
   std::cout << "-ffd=.../.../.bin : floppydisk | path to a file which can be "
                "loaded for Programs or the OS"
             << std::endl; // TODO: multiple files / multiple floppies? hot swap?
+  std::cout << "-h                : help       | shows the usage" << std::endl;
+}
+
+struct CLIArgument {
+
+  // in
+  std::string S_type;
+  std::string S_value;
+};
+
+void parseArgument(CLIArgument arg) {
+
+  if (arg.S_type == "m") {
+    parseModules(arg.S_value);
+    std::cout << "New Config: " << T_config.str() << std::endl;
+  }
+
+  else if (arg.S_type == "d") {
+    B_debug = S_to_B(arg.S_value);
+    std::cout << "Changed debug: '" + arg.S_value + "'" << std::endl;
+  }
+
+  else if (arg.S_type == "s") {
+    B_step = S_to_B(arg.S_value);
+    std::cout << "Changed step: '" + arg.S_value + "'" << std::endl;
+  } else if (arg.S_type == "b") {
+
+    uint32_t bp = 0;
+    try {
+      bp = std::strtoul(arg.S_value.c_str(), nullptr, 16);
+    } catch (std::exception E) {
+      Error<std::invalid_argument>("Invalid breakpoint address");
+    }
+
+    V_u32_breakpoints.push_back(bp);
+
+    std::cout << "Added breakpoint '" + arg.S_value + "'" << std::endl;
+  }
+
+  else if (arg.S_type == "ffw") {
+  } else if (arg.S_type == "fhd") {
+  } else if (arg.S_type == "ffd") {
+  }
+
+  else {
+    Error<std::invalid_argument>("commandline option'" + arg.S_type +
+                                 "' not supported! ");
+  }
 }
 
 int main(int argc, char **argv) {
@@ -35,7 +91,26 @@ int main(int argc, char **argv) {
     showUsage(argv[0]);
   }
 
-  std::vector<std::string> args;
+  for (int i = 1; i < argc; i++) {
+    std::string S_arg(argv[i]);
+    S_arg = S_arg.substr(1, S_arg.length());
+
+    size_t pos = S_arg.find("=");
+
+    if (pos != std::string::npos) {
+      std::string S_type = S_arg.substr(0, pos);
+      std::string S_value = S_arg.substr(pos + 1);
+
+      CLIArgument arg = {S_type, S_value};
+
+      parseArgument(arg);
+
+    } else {
+
+      Error<std::invalid_argument>("Invalid argument near: '" +
+                                   std::string(argv[i]) + "'");
+    }
+  }
 
   return 0;
 }
