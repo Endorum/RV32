@@ -14,7 +14,8 @@ inline std::string breakpoints_str(const std::vector<uint32_t> &bp) {
   }
 
   // remove last ,
-  out = out.substr(0, out.length() - 2);
+  if (!bp.empty())
+    out = out.substr(0, out.length() - 2);
 
   return out + "]";
 }
@@ -50,17 +51,26 @@ struct Config {
            " STEP: " + std::to_string(B_step) + "\n" + " breakpoints: \n" +
            breakpoints_str(V_u32_breakpoints) + "\n" +
            " Firmware: " + firmware_path + "\n Harddisk: " + harddisk_path +
-           "\n Floppydisk: " + floppydisk_path + "\n";
+           "\n Removable: " + removable_path + "\n";
   }
-  bool B_debug;
-  bool B_step;
+  bool B_debug = false;
+  bool B_step = false;
 
   std::vector<uint32_t> V_u32_breakpoints;
 
-  std::string firmware_path;
-  std::string harddisk_path;
-  std::string floppydisk_path;
+  std::string firmware_path = "";
+  std::string harddisk_path = "";
+  std::string removable_path = "";
 };
+
+struct CLIArgument {
+
+  // in
+  std::string S_type;
+  std::string S_value;
+};
+
+void parseArgument(CLIArgument arg);
 
 extern Config T_config;
 

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../include/CONFIG.hpp"
+#include "../include/MMAP.hpp"
 #include "../include/UTILS.hpp"
 
 void showUsage(std::string argv0) {
@@ -27,73 +28,28 @@ void showUsage(std::string argv0) {
       << "-b=0x...          : breakpoint | places breakpoint at given address "
          "in memory, stops and enables step mode by default and debug mode"
       << std::endl;
-  std::cout << "-ffw=.../.../.bin : firmware   | provides a firmware file "
+  std::cout << "-firmware=.../.../.bin : firmware   | provides a firmware file "
                "which is run at reset by default"
             << std::endl;
-  std::cout << "-fhd=.../.../.bin : harddisk   | to provide a file which is "
+  std::cout << "-disk=.../.../.bin : harddisk   | to provide a file which is "
                "used as permanent storage/Harddisk"
             << std::endl;
-  std::cout << "-ffd=.../.../.bin : floppydisk | path to a file which can be "
-               "loaded for Programs or the OS"
-            << std::endl; // TODO: multiple files / multiple floppies? hot swap?
+  std::cout
+      << "-removable=.../.../.bin : removable | path to a file which can be "
+         "loaded for Programs or the OS"
+      << std::endl; // TODO: multiple files / multiple floppies? hot swap?
   std::cout << "-h                : help       | shows the usage" << std::endl;
-}
-
-struct CLIArgument {
-
-  // in
-  std::string S_type;
-  std::string S_value;
-};
-
-void parseArgument(CLIArgument arg) {
-
-  if (arg.S_type == "m") {
-    parseModules(arg.S_value);
-  }
-
-  else if (arg.S_type == "d") {
-    T_config.B_debug = S_to_B(arg.S_value);
-  }
-
-  else if (arg.S_type == "s") {
-    T_config.B_step = S_to_B(arg.S_value);
-  } else if (arg.S_type == "b") {
-
-    uint32_t bp = 0;
-    try {
-      bp = std::strtoul(arg.S_value.c_str(), nullptr, 16);
-    } catch (std::exception E) {
-      Error<std::invalid_argument>("Invalid breakpoint address");
-    }
-
-    T_config.V_u32_breakpoints.push_back(bp);
-
-  }
-
-  else if (arg.S_type[0] == 'f') {
-    std::string filename = arg.S_value;
-    if (arg.S_type == "ffw") {
-      T_config.firmware_path = filename;
-    } else if (arg.S_type == "fhd") {
-      T_config.harddisk_path = filename;
-    } else if (arg.S_type == "ffd") {
-      T_config.floppydisk_path = filename;
-    }
-  }
-
-  else {
-    Error<std::invalid_argument>("commandline option'" + arg.S_type +
-                                 "' not supported! ");
-  }
 }
 
 int main(int argc, char **argv) {
 
-  if (argc < 2) {
+  // disabled forced args for testing
+  if (argc < 1) {
     showUsage(argv[0]);
+    return 1;
   }
 
+  // build configuration based on CLI arguments
   for (int i = 1; i < argc; i++) {
     std::string S_arg(argv[i]);
     S_arg = S_arg.substr(1, S_arg.length());
@@ -114,8 +70,13 @@ int main(int argc, char **argv) {
                                    std::string(argv[i]) + "'");
     }
   }
-
   std::cout << "Configuration: \n" << T_config.str() << std::endl;
+
+  //
+
+  MemRegion reg = {"Teststring", 23456, 9865, nullptr};
+
+  std::cout << reg.str() << std::endl;
 
   return 0;
 }

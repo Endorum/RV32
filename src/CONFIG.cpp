@@ -63,3 +63,40 @@ void parseModules(std::string str) {
     }
   }
 }
+
+void parseArgument(CLIArgument arg) {
+
+  if (arg.S_type == "m") {
+    parseModules(arg.S_value);
+  }
+
+  else if (arg.S_type == "d") {
+    T_config.B_debug = S_to_B(arg.S_value);
+  }
+
+  else if (arg.S_type == "s") {
+    T_config.B_step = S_to_B(arg.S_value);
+  } else if (arg.S_type == "b") {
+
+    uint32_t bp = 0;
+    try {
+      bp = std::strtoul(arg.S_value.c_str(), nullptr, 16);
+    } catch (std::exception E) {
+      Error<std::invalid_argument>("Invalid breakpoint address");
+    }
+
+    T_config.V_u32_breakpoints.push_back(bp);
+
+  }
+
+  else if (arg.S_type == "firmware") {
+    T_config.firmware_path = arg.S_value;
+  } else if (arg.S_type == "disk") {
+    T_config.harddisk_path = arg.S_value;
+  } else if (arg.S_type == "removable") {
+    T_config.removable_path = arg.S_value;
+  } else {
+    Error<std::invalid_argument>("commandline option'" + arg.S_type +
+                                 "' not supported! ");
+  }
+}
