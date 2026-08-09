@@ -6,29 +6,23 @@
 #define u8 uint8_t
 #define u16 uint16_t
 #define u32 uint32_t
+#define u64 uint64_t
 
 #define i8 int8_t
 #define i16 int16_t
 #define i32 int32_t
+#define i64 int64_t
 
-enum BITSIZE { BYTE = 1, HALF = 2, WORD = 4 };
-
-typedef enum {
-  ALU_R = 0b0110011,
-  ALU_I = 0b0010011,
-  LOAD = 0b0000011,
-  STORE = 0b0100011,
-  BRANCH = 0b1100011,
-  JAL = 0b1101111,
-  JALR = 0b1100111,
-  LUI = 0b0110111,
-  AUIPC = 0b0010111,
-  SYSTEM = 0b1110011,
-  FENCE = 0b0001111,
-} INSTR_OPCODE;
+enum BITSIZE
+{
+  BYTE = 1,
+  HALF = 2,
+  WORD = 4
+};
 
 // register index
-typedef enum {
+typedef enum
+{
   zero,
   ra,
   sp,
@@ -64,7 +58,8 @@ typedef enum {
 } REG_IDX;
 
 // csr register addresses
-enum class CSR_ADDR : u16 {
+enum class CSR_ADDR : u16
+{
   fflags = 0x000,
   frm = 0x001,
   fcsr = 0x002,

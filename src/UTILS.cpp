@@ -4,6 +4,23 @@
 
 #include "../include/UTILS.hpp"
 
+template <typename ExceptionType> [[noreturn]] void Error(std::string msg) {
+
+  ExceptionType exc(msg);
+
+  std::cerr << "\tERROR: " << exc.what() << "\n\t";
+
+  throw exc;
+}
+
+// The template body lives in this .cpp, so every ExceptionType used from
+// other translation units must be explicitly instantiated here — otherwise
+// the linker has no symbol to find. (Alternative: move the definition into
+// UTILS.hpp and delete these.)
+template void Error<std::runtime_error>(std::string);
+template void Error<std::invalid_argument>(std::string);
+template void Error<std::out_of_range>(std::string);
+
 bool S_to_B(std::string str) {
 
   std::transform(str.begin(), str.end(), str.begin(), ::toupper);

@@ -32,6 +32,26 @@ add_executable(main ${SOURCES})
 target_include_directories(main PRIVATE "${CMAKE_SOURCE_DIR}/include")
 
 # ============================================================
+# Tests — separate target, not part of the normal build.
+#   build:  cmake --build build --target tests
+#   run:    ./build/tests
+# Links only the modules under test (decoder + utils), so it
+# builds even while CPU.cpp is mid-rewrite.
+# ============================================================
+
+add_executable(tests EXCLUDE_FROM_ALL
+  "${CMAKE_SOURCE_DIR}/tests/test_main.cpp"
+  "${CMAKE_SOURCE_DIR}/tests/test_decode.cpp"
+  "${CMAKE_SOURCE_DIR}/tests/test_cpu.cpp"
+  "${CMAKE_SOURCE_DIR}/src/DECODE.cpp"
+  "${CMAKE_SOURCE_DIR}/src/CPU.cpp"
+  "${CMAKE_SOURCE_DIR}/src/CONFIG.cpp"
+  "${CMAKE_SOURCE_DIR}/src/UTILS.cpp"
+)
+
+target_include_directories(tests PRIVATE "${CMAKE_SOURCE_DIR}/include")
+
+# ============================================================
 # Warnings
 # ============================================================
 

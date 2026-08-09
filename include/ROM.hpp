@@ -25,7 +25,7 @@ public:
     f.read(reinterpret_cast<char *>(data.data()), data.size());
   }
 
-  u32 read(u32 address, BITSIZE size) override {
+  u32 load(u32 address, BITSIZE size) override {
     if (address >= data.size()) {
       // rest is simply =0 so as to not run into an Error
       return 0x0;
@@ -42,7 +42,7 @@ public:
     return out;
   }
 
-  void write(u32 address, BITSIZE size, u32 value) override {
+  void store(u32 address, BITSIZE size, u32 value) override {
     // Error<std::invalid_argument>("ROM is read only!");
   }
 

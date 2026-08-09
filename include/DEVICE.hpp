@@ -13,8 +13,8 @@ class Device {
 public:
   virtual ~Device() = default;
 
-  virtual u32 read(u32 address, BITSIZE size) = 0; 
-  virtual void write(u32 address, BITSIZE size, u32 value) = 0;
+  virtual u32 load(u32 address, BITSIZE size) = 0; 
+  virtual void store(u32 address, BITSIZE size, u32 value) = 0;
   virtual std::string str() const = 0;
 };
 

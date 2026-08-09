@@ -7,14 +7,7 @@
 
 #include "DEFS.hpp"
 
-template <typename ExceptionType> [[noreturn]] void Error(std::string msg) {
-
-  ExceptionType exc(msg);
-
-  std::cerr << "\tERROR: " << exc.what() << "\n\t";
-
-  throw exc;
-}
+template <typename ExceptionType> [[noreturn]] void Error(std::string msg);
 
 bool S_to_B(std::string str);
 u32 extract_bits(u32 value, u32 min, u32 max);
