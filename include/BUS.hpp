@@ -5,8 +5,10 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
+#include "CONFIG.hpp"
 #include "DEVICE.hpp"
 #include "MMAP.hpp"
 #include "UTILS.hpp"
@@ -17,7 +19,7 @@ public:
   Bus() = default;
   ~Bus() = default;
 
-  void addDevice(const std::string &name, uint32_t start, uint32_t size,
+  void addDevice(const std::string &name, u32 start, u32 size,
                  std::unique_ptr<Device> dev) {
     MemRegion reg = {name, start, size, std::move(dev)};
 
@@ -26,11 +28,15 @@ public:
     regions.push_back(std::move(reg));
   }
 
-  uint8_t u8_read(uint32_t address) const {
+  u32 read(u32 address, BITSIZE size) const {
+
+    if (T_config.B_debug)
+      printf("Bus.read(address: %08X, size: %d): ", address, size);
 
     for (auto &r : regions) {
-      if (r.start <= address && r.start + r.size > address)
-        return r.device->u8_read(address);
+      if (r.start <= address && r.start + r.size > (address + size)) {
+        return r.device->read(address - r.start, size);
+      }
     }
 
     Error<std::out_of_range>(
@@ -39,11 +45,13 @@ public:
     return -1;
   }
 
-  void u8_write(uint32_t address, uint8_t value) {
+  void write(u32 address, BITSIZE size, u32 value) {
 
     for (auto &r : regions) {
-      if (r.start <= address && r.start + r.size > address)
-        r.device->u8_write(address, value);
+      if (r.start <= address && r.start + r.size > (address + size)) {
+        r.device->write(address - r.start, size, value);
+        return;
+      }
     }
 
     Error<std::out_of_range>(
@@ -51,9 +59,18 @@ public:
   }
 
   std::string str() const {
-    std::string out = "";
+    std::string out =
+        "BUS with " + std::to_string(regions.size()) + " attached devices:\n";
     for (auto &reg : regions) {
       out += reg.str() + "\n";
+    }
+    return out;
+  }
+
+  std::string devices_string() const {
+    std::string out = "";
+    for (auto &reg : regions) {
+      out += reg.device->str() + "\n";
     }
     return out;
   }

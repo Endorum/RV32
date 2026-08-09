@@ -78,7 +78,7 @@ void parseArgument(CLIArgument arg) {
     T_config.B_step = S_to_B(arg.S_value);
   } else if (arg.S_type == "b") {
 
-    uint32_t bp = 0;
+    u32 bp = 0;
     try {
       bp = std::strtoul(arg.S_value.c_str(), nullptr, 16);
     } catch (std::exception E) {

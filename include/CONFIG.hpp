@@ -6,7 +6,9 @@
 #include <string>
 #include <vector>
 
-inline std::string breakpoints_str(const std::vector<uint32_t> &bp) {
+#include "DEFS.hpp"
+
+inline std::string breakpoints_str(const std::vector<u32> &bp) {
   std::string out = " [";
 
   for (auto v : bp) {
@@ -56,11 +58,13 @@ struct Config {
   bool B_debug = false;
   bool B_step = false;
 
-  std::vector<uint32_t> V_u32_breakpoints;
+  std::vector<u32> V_u32_breakpoints;
 
   std::string firmware_path = "";
   std::string harddisk_path = "";
   std::string removable_path = "";
+
+  u32 resetVector = 0x0;
 };
 
 struct CLIArgument {

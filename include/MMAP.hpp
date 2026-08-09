@@ -13,8 +13,8 @@ struct MemRegion {
   // 32 chars max
   std::string name;
 
-  uint32_t start;
-  uint32_t size;
+  u32 start;
+  u32 size;
 
   std::unique_ptr<Device> device;
 

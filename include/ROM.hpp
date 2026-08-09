@@ -4,12 +4,11 @@
 #include "CONFIG.hpp"
 #include "DEVICE.hpp"
 #include "UTILS.hpp"
-#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <fstream>
 #include <stdexcept>
+#include <string>
 
 class ROM : public Device {
 
@@ -26,20 +25,34 @@ public:
     f.read(reinterpret_cast<char *>(data.data()), data.size());
   }
 
-  uint8_t u8_read(uint32_t address) const override {
-    // TODO: somehow retrieve the device size, to check for valid addresses?
+  u32 read(u32 address, BITSIZE size) override {
+    if (address >= data.size()) {
+      // rest is simply =0 so as to not run into an Error
+      return 0x0;
+    }
 
-    return data.at(address);
+    u32 out = 0;
+    for (int i = 0; i < size; i++) {
+      out |= data.at(address + i) << (8 * i); // little-endian
+    }
+
+    if (T_config.B_debug)
+      printf("ROM.read(address: %08X, size: %d) -> %08X out -> ", address, size,
+             out);
+    return out;
   }
 
-  void u8_write(uint32_t address, uint8_t value) override {
-    Error<std::invalid_argument>("ROM is read only!");
+  void write(u32 address, BITSIZE size, u32 value) override {
+    // Error<std::invalid_argument>("ROM is read only!");
+  }
+
+  std::string str() const override {
+    return "ROM with data of length: " + std::to_string(data.size()) +
+           " Bytes ";
   }
 
 private:
-  bool loaded = false;
-
-  std::vector<uint8_t> data;
+  std::vector<u8> data;
 };
 
 #endif // ROM_HPP

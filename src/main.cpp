@@ -4,12 +4,17 @@
 #include <exception>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "../include/BUS.hpp"
 #include "../include/CONFIG.hpp"
+#include "../include/CPU.hpp"
+#include "../include/MACHINE.hpp"
 #include "../include/MMAP.hpp"
+#include "../include/ROM.hpp"
 #include "../include/UTILS.hpp"
 
 void showUsage(std::string argv0) {
@@ -72,11 +77,13 @@ int main(int argc, char **argv) {
   }
   std::cout << "Configuration: \n" << T_config.str() << std::endl;
 
-  //
+  Machine machine;
 
-  MemRegion reg = {"Teststring", 23456, 9865, nullptr};
+  std::cout << "\nSTARTING EXECUTION...\n" << std::endl;
 
-  std::cout << reg.str() << std::endl;
+  int i = 0;
+  while (i++ < 50)
+    machine.step();
 
   return 0;
 }

@@ -1,7 +1,9 @@
 #ifndef DEVICE_HPP
 #define DEVICE_HPP
 
+#include "DEFS.hpp"
 #include <cstdint>
+#include <string>
 
 // a device is a class of anything that can be attached to the bus and
 // can act like a memory device, in the sense that it can simply be accessed via
@@ -11,8 +13,9 @@ class Device {
 public:
   virtual ~Device() = default;
 
-  virtual uint8_t u8_read(uint32_t address) const = 0;
-  virtual void u8_write(uint32_t address, uint8_t value) = 0;
+  virtual u32 read(u32 address, BITSIZE size) = 0; 
+  virtual void write(u32 address, BITSIZE size, u32 value) = 0;
+  virtual std::string str() const = 0;
 };
 
 #endif // DEVICE_HPP
