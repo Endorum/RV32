@@ -28,6 +28,10 @@ void CPU::step(){
   // decode
   Instruction instr = decode(word, pc);
 
+  if(config.debug || config.log){
+    current_dis = disassemble(instr);
+  }
+
   // preload registers
   rs1 = get_reg(instr.rs1);
   rs2 = get_reg(instr.rs2);
@@ -42,6 +46,44 @@ void CPU::step(){
 
 void CPU::attach_bus(BUS* b){
   bus = b;
+}
+
+std::string CPU::state_str() {
+  std::string out;
+  out += std::format("\tPC: {:08X}\n", pc);
+
+  out += "REGISTER: \n";
+  out += std::format("\tx0:     {:08X}, x1/ra:  {:08X}, x2/sp:  {:08X}, x3/gp:  {:08X}\n",
+  get_reg(0), get_reg(1), get_reg(2), get_reg(3));
+
+  out += std::format("\tx4/tp:  {:08X}, x5/t0:  {:08X}, x6/t1:  {:08X}, x7/t2:  {:08X}\n",
+      get_reg(4), get_reg(5), get_reg(6), get_reg(7));
+
+  out += std::format("\tx8/s0:  {:08X}, x9/s1:  {:08X}, x10/a0: {:08X}, x11/a1: {:08X}\n",
+      get_reg(8), get_reg(9), get_reg(10), get_reg(11));
+
+  out += std::format("\tx12/a2: {:08X}, x13/a3: {:08X}, x14/a4: {:08X}, x15/a5: {:08X}\n",
+      get_reg(12), get_reg(13), get_reg(14), get_reg(15));
+
+  out += std::format("\tx16/a6: {:08X}, x17/a7: {:08X}, x18/s2: {:08X}, x19/s3: {:08X}\n",
+      get_reg(16), get_reg(17), get_reg(18), get_reg(19));
+
+  out += std::format("\tx20/s4: {:08X}, x21/s5: {:08X}, x22/s6: {:08X}, x23/s7: {:08X}\n",
+      get_reg(20), get_reg(21), get_reg(22), get_reg(23));
+
+  out += std::format("\tx24/s8: {:08X}, x25/s9: {:08X},    s10: {:08X},    s11: {:08X}\n",
+      get_reg(24), get_reg(25), get_reg(26), get_reg(27));
+
+  out += std::format("\tx28/t3: {:08X}, x29/t4: {:08X}, x30/t5: {:08X}, x31/t6: {:08X}\n",
+      get_reg(28), get_reg(29), get_reg(30), get_reg(31));
+
+  out += "PRELOADED REGISTERS:\n";
+  out += std::format("\trs1: {:08X}\n", rs1);
+  out += std::format("\trs2: {:08X}\n", rs2);
+
+  out += std::format("LAST ADDRESS: {:08X}\n", last_addr_used);
+
+  return out;
 }
 
 // internal 
@@ -70,11 +112,13 @@ u32 CPU::get_csr(u16 idx) const {
 
 void CPU::store(u32 addr, BITSIZE size, u32 val){
   if(!bus) Error<std::runtime_error>("BUS not assigned");
+  last_addr_used = addr;
   bus->store(addr, size, val);
 }
 
 u32 CPU::load(u32 addr, BITSIZE size) {
   if(!bus) Error<std::runtime_error>("BUS not assigned");
+  last_addr_used = addr;
   return bus->load(addr, size);
 }
 

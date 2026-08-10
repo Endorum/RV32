@@ -30,6 +30,7 @@ struct Config {
 
   std::string str() {
     return " DEBUG: " + std::to_string(debug) +
+           " LOG: " + std::to_string(log) +
            " STEP: " + std::to_string(step) + "\n" + " breakpoints: \n" +
            breakpoints_str(breakpoints) + "\n" +
            " Firmware: " + firmware_path + "\n Harddisk: " + harddisk_path +
@@ -37,6 +38,7 @@ struct Config {
   }
 
   bool debug = false;
+  bool log = false;
   bool step = false;
 
   std::vector<u32> breakpoints;

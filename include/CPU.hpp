@@ -24,6 +24,10 @@ public:
 
   void set_config(const Config& c){ config = c; }
 
+  std::string get_current_dis() { return current_dis; }
+  u32 get_cycle(){return cycle;}
+  std::string state_str();
+
 private:
   u32 regfile[32];
   u32 csr[4096];
@@ -33,6 +37,8 @@ private:
   BUS* bus = nullptr;
 
   Config config;
+  std::string current_dis;
+  u32 last_addr_used = 0x0;
 
   u32 rs1;
   u32 rs2;

@@ -7,7 +7,6 @@
 
 #include <exception>
 #include <iostream>
-#include <memory>
 #include <sstream>
 #include <vector>
 
@@ -37,21 +36,19 @@ public:
       mem[address + i] = (u8)(value >> (8 * i));
   }
 
-  std::string str() const override { return "TestRAM"; }
-
 private:
   u8 mem[RAM_BYTES] = {};
 };
 
 // load a program at 0x0 into `bus`, then run `steps` instructions.
-// (bus is a parameter instead of a return value: BUS declares a destructor,
-// which suppresses its move constructor, and unique_ptr forbids copies)
-static void run_program(BUS& bus, const std::vector<u32>& prog, int steps) {
+// The bus holds non-owning pointers now, so `ram` lives in the test body
+// alongside `bus` — it must outlive the bus.load() checks after we return.
+static void run_program(BUS& bus, TestRAM& ram, const std::vector<u32>& prog, int steps) {
   {
     // swallow addDevice's "Adding Device:" chatter
     std::ostringstream sink;
     std::streambuf* old = std::cout.rdbuf(sink.rdbuf());
-    bus.addDevice(std::make_unique<TestRAM>());
+    bus.addDevice(ram);
     std::cout.rdbuf(old);
   }
 
@@ -87,7 +84,8 @@ static void guarded(const char* name, Fn fn) {
 static void test_add() {
   guarded("add", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x00500293, // addi t0, x0, 5
       0x00700313, // addi t1, x0, 7
       0x006283B3, // add  t2, t0, t1
@@ -100,7 +98,8 @@ static void test_add() {
 static void test_sub_negative_and_sra() {
   guarded("sub/sra", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x00500293, // addi t0, x0, 5
       0x00700313, // addi t1, x0, 7
       0x406283B3, // sub  t2, t0, t1        -> -2
@@ -116,7 +115,8 @@ static void test_sub_negative_and_sra() {
 static void test_slt_signed_vs_unsigned() {
   guarded("slt/sltu", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0xFFF00293, // addi t0, x0, -1
       0x00100313, // addi t1, x0, 1
       0x0062A3B3, // slt  t2, t0, t1        -> 1  (-1 < 1 signed)
@@ -132,7 +132,8 @@ static void test_slt_signed_vs_unsigned() {
 static void test_shift_amount_masked() {
   guarded("sll masking", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x00100293, // addi t0, x0, 1
       0x02100313, // addi t1, x0, 33
       0x006293B3, // sll  t2, t0, t1        -> 1 << (33 & 31) = 2
@@ -147,7 +148,8 @@ static void test_shift_amount_masked() {
 static void test_lb_sign_extension() {
   guarded("lb/lbu", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0xF8000293, // addi t0, x0, -128
       0x20500023, // sb   t0, 0x200(x0)     memory byte = 0x80
       0x20000303, // lb   t1, 0x200(x0)     -> 0xFFFFFF80 (sign-extended)
@@ -163,7 +165,8 @@ static void test_lb_sign_extension() {
 static void test_lh_sign_extension() {
   guarded("lh/lhu", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0xFFE00293, // addi t0, x0, -2
       0x20501023, // sh   t0, 0x200(x0)     memory half = 0xFFFE
       0x20001303, // lh   t1, 0x200(x0)     -> 0xFFFFFFFE
@@ -179,7 +182,8 @@ static void test_lh_sign_extension() {
 static void test_sb_touches_one_byte() {
   guarded("sb width", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0xFFF00293, // addi t0, x0, -1        t0 = 0xFFFFFFFF
       0x20502023, // sw   t0, 0x200(x0)     word = FFFFFFFF
       0x00000313, // addi t1, x0, 0
@@ -194,7 +198,8 @@ static void test_sb_touches_one_byte() {
 static void test_branch_taken() {
   guarded("beq taken", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x00100293, // 0x00: addi t0, x0, 1
       0x00100313, // 0x04: addi t1, x0, 1
       0x00628663, // 0x08: beq  t0, t1, +12  -> 0x14
@@ -211,7 +216,8 @@ static void test_branch_taken() {
 static void test_branch_not_taken() {
   guarded("bne not taken", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x00100293, // 0x00: addi t0, x0, 1
       0x00529463, // 0x04: bne  t0, t0, +8   (equal -> must NOT branch)
       0x00700393, // 0x08: addi t2, x0, 7
@@ -226,7 +232,8 @@ static void test_branch_not_taken() {
 static void test_jal_link_and_target() {
   guarded("jal", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x008000EF, // 0x00: jal  ra, +8       -> 0x08, ra = 0x04
       0x06F00393, // 0x04: addi t2, x0, 111  (must be skipped)
       0x20102023, // 0x08: sw   ra, 0x200(x0)
@@ -238,7 +245,8 @@ static void test_jal_link_and_target() {
 static void test_jalr_target_masked_and_link() {
   guarded("jalr", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x01000293, // 0x00: addi t0, x0, 0x10
       0x001280E7, // 0x04: jalr ra, 1(t0)    target (0x10+1)&~1 = 0x10, ra = 0x08
       0x06F00393, // 0x08: addi t2, x0, 111  (must be skipped)
@@ -254,7 +262,8 @@ static void test_jalr_target_masked_and_link() {
 static void test_lui_auipc() {
   guarded("lui/auipc", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x123452B7, // 0x00: lui   t0, 0x12345  -> 0x12345000
       0x00001317, // 0x04: auipc t1, 1        -> 0x04 + 0x1000 = 0x1004
       0x20502023, // 0x08: sw    t0, 0x200(x0)
@@ -270,7 +279,8 @@ static void test_lui_auipc() {
 static void test_x0_stays_zero() {
   guarded("x0", [] {
     BUS bus;
-    run_program(bus, {
+    TestRAM ram;
+    run_program(bus, ram, {
       0x00500013, // addi x0, x0, 5          (write to x0 must vanish)
       0x20002023, // sw   x0, 0x200(x0)
     }, 2);

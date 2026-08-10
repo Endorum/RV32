@@ -237,9 +237,9 @@ std::string format_operands(const Instruction& instr){
     case Format::R: return std::format("{}, {}, {}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), reg_idx_str(instr.rs2));
     case Format::I: return std::format("{}, {}, {}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), instr.imm);
     case Format::S: return std::format("{}, {}({})",      reg_idx_str(instr.rs2), instr.imm, reg_idx_str(instr.rs1));
-    case Format::B: return std::format("{}, {}, {:#x} # {:+}",  reg_idx_str(instr.rs1), reg_idx_str(instr.rs2), instr.addr + instr.imm, instr.imm);
+    case Format::B: return std::format("{}, {}, {:#x}\t\t# {:+}",  reg_idx_str(instr.rs1), reg_idx_str(instr.rs2), instr.addr + instr.imm, instr.imm);
     case Format::U: return std::format("{}, {:#x}", reg_idx_str(instr.rd), (u32)instr.imm);
-    case Format::J: return std::format("{}, {:#x} # {:+}", reg_idx_str(instr.rd), instr.addr + instr.imm, instr.imm);
+    case Format::J: return std::format("{}, {:#x}\t\t# {:+}", reg_idx_str(instr.rd), instr.addr + instr.imm, instr.imm);
   }
 
   return "???";

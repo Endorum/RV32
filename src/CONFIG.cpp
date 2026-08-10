@@ -6,7 +6,9 @@ void parseArgument(CLIArgument arg, Config& config) {
   if (arg.S_type == "d") {
     config.debug = S_to_B(arg.S_value);
   }
-
+  else if (arg.S_type == "l") {
+    config.log = S_to_B(arg.S_value);
+  }
   else if (arg.S_type == "s") {
     config.step = S_to_B(arg.S_value);
   } else if (arg.S_type == "b") {

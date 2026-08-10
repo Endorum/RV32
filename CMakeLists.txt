@@ -21,7 +21,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Sources
 # ============================================================
 
-file(GLOB SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
+
+
 
 add_executable(main ${SOURCES})
 
@@ -30,6 +32,8 @@ add_executable(main ${SOURCES})
 # ============================================================
 
 target_include_directories(main PRIVATE "${CMAKE_SOURCE_DIR}/include")
+target_include_directories(main PRIVATE "${CMAKE_SOURCE_DIR}/include/devices")
+
 
 # ============================================================
 # Tests — separate target, not part of the normal build.

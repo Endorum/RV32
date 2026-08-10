@@ -9,12 +9,12 @@
 #include <string>
 #include <vector>
 
-#include "../include/BUS.hpp"
-#include "../include/CONFIG.hpp"
-#include "../include/CPU.hpp"
-#include "../include/MACHINE.hpp"
-#include "../include/ROM.hpp"
-#include "../include/UTILS.hpp"
+#include "BUS.hpp"
+#include "CONFIG.hpp"
+#include "CPU.hpp"
+#include "MACHINE.hpp"
+#include "ROM.hpp"
+#include "UTILS.hpp"
 
 void showUsage(std::string argv0) {
   std::cout << "Usage:\n" << std::endl;
@@ -81,7 +81,9 @@ int main(int argc, char **argv) {
   
   std::cout << "\nSTARTING EXECUTION...\n" << std::endl;
 
-  machine.step();
+  for(int i=0;i<100;i++)
+    machine.step();
+  
 
     
 

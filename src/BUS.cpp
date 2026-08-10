@@ -11,9 +11,9 @@ u32 BUS::load(u32 address, BITSIZE size) const {
 
   for(auto& dev : devices){
     u32 start = dev->get_start();
-    u32 mem_size = dev->get_size();
+    u32 dev_size = dev->get_size();
 
-    if(start <= address && start + mem_size >= (address + size)){
+    if(start <= address && start + dev_size >= (address + size)){
       return dev->load(address - start, size);
     }
 
@@ -29,9 +29,9 @@ void BUS::store(u32 address, BITSIZE size, u32 value) {
     
   for(auto& dev : devices){
     u32 start = dev->get_start();
-    u32 mem_size = dev->get_size();
+    u32 dev_size = dev->get_size();
 
-    if(start <= address && start + mem_size >= (address + size)){
+    if(start <= address && start + dev_size >= (address + size)){
       dev->store(address - start, size, value);
       return;
     }
