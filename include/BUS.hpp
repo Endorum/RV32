@@ -10,16 +10,15 @@
 
 #include "CONFIG.hpp"
 #include "DEVICE.hpp"
-#include "MMAP.hpp"
 #include "UTILS.hpp"
 
-class Bus {
+class BUS {
 
 public:
-  Bus() = default;
-  ~Bus() = default;
+  BUS() = default;
+  ~BUS() = default;
 
-  void addDevice(const std::string &name, u32 start, u32 size, std::unique_ptr<Device> dev);
+  void addDevice(Device& dev);
 
   u32 load(u32 address, BITSIZE size) const;
 
@@ -27,10 +26,8 @@ public:
 
   std::string str() const;
 
-  std::string devices_string() const ;
-
 private:
-  std::vector<MemRegion> regions;
+  std::vector<Device*> devices;
 };
 
 #endif // BUS_HPP

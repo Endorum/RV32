@@ -45,6 +45,7 @@ add_executable(tests EXCLUDE_FROM_ALL
   "${CMAKE_SOURCE_DIR}/tests/test_cpu.cpp"
   "${CMAKE_SOURCE_DIR}/src/DECODE.cpp"
   "${CMAKE_SOURCE_DIR}/src/CPU.cpp"
+  "${CMAKE_SOURCE_DIR}/src/BUS.cpp"
   "${CMAKE_SOURCE_DIR}/src/CONFIG.cpp"
   "${CMAKE_SOURCE_DIR}/src/UTILS.cpp"
 )

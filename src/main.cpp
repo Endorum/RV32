@@ -13,16 +13,12 @@
 #include "../include/CONFIG.hpp"
 #include "../include/CPU.hpp"
 #include "../include/MACHINE.hpp"
-#include "../include/MMAP.hpp"
 #include "../include/ROM.hpp"
 #include "../include/UTILS.hpp"
 
 void showUsage(std::string argv0) {
   std::cout << "Usage:\n" << std::endl;
-  std::cout << argv0 << "   [-mdsb] [options] " << std::endl;
-  std::cout << "-m=[amf...]       : extensions | specify one or more modules, "
-               "currenty available: i"
-            << std::endl;
+  std::cout << argv0 << "   [-dsb] [options] " << std::endl;
   std::cout
       << "-d=[true/false]   : debug mode | enables or disables Debug mode "
       << std::endl;
@@ -52,9 +48,11 @@ int main(int argc, char **argv) {
   if (argc < 1) {
     showUsage(argv[0]);
     return 1;
-  }
+  } 
+
 
   // build configuration based on CLI arguments
+  Config config;
   for (int i = 1; i < argc; i++) {
     std::string S_arg(argv[i]);
     S_arg = S_arg.substr(1, S_arg.length());
@@ -67,7 +65,7 @@ int main(int argc, char **argv) {
 
       CLIArgument arg = {S_type, S_value};
 
-      parseArgument(arg);
+      parseArgument(arg, config);
 
     } else {
 
@@ -75,15 +73,17 @@ int main(int argc, char **argv) {
                                    std::string(argv[i]) + "'");
     }
   }
-  std::cout << "Configuration: \n" << T_config.str() << std::endl;
+  std::cout << "Configuration: \n" << config.str() << std::endl;
 
-  Machine machine;
-
+  // setup
+  Machine machine(config);
+  machine.start();
+  
   std::cout << "\nSTARTING EXECUTION...\n" << std::endl;
 
-  int i = 0;
-  while (i++ < 50)
-    machine.step();
+  machine.step();
+
+    
 
   return 0;
 }

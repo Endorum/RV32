@@ -13,42 +13,34 @@
 class ROM : public Device {
 
 public:
-  explicit ROM() {
-    std::ifstream f(T_config.firmware_path, std::ios::binary | std::ios::ate);
+  explicit ROM(u32 start, u32 size) : Device(start, size, "ROM") {}
+
+  void load_firmware(){
+    std::cout << "Loading firmware '" << get_config().firmware_path << "'...";
+
+    if(get_config().firmware_path.empty()){
+      Error<std::runtime_error>("Provide a firmware binary for startup");
+    }
+
+    std::ifstream f(get_config().firmware_path, std::ios::binary | std::ios::ate);
+    
     if (!f)
       Error<std::runtime_error>("Could not open firmware file: '" +
-                                T_config.firmware_path + "'");
+                                get_config().firmware_path + "'");
 
     data.resize(static_cast<size_t>(f.tellg()));
+
     f.seekg(0);
-
     f.read(reinterpret_cast<char *>(data.data()), data.size());
+
+    std::cout << "Done!" << std::endl;
   }
 
-  u32 load(u32 address, BITSIZE size) override {
-    if (address >= data.size()) {
-      // rest is simply =0 so as to not run into an Error
-      return 0x0;
-    }
-
-    u32 out = 0;
-    for (int i = 0; i < size; i++) {
-      out |= data.at(address + i) << (8 * i); // little-endian
-    }
-
-    if (T_config.B_debug)
-      printf("ROM.read(address: %08X, size: %d) -> %08X out -> ", address, size,
-             out);
-    return out;
-  }
+  u32 load(u32 address, BITSIZE size) override;
 
   void store(u32 address, BITSIZE size, u32 value) override {
     // Error<std::invalid_argument>("ROM is read only!");
-  }
-
-  std::string str() const override {
-    return "ROM with data of length: " + std::to_string(data.size()) +
-           " Bytes ";
+    // raise error?
   }
 
 private:

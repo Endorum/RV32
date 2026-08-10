@@ -46,7 +46,7 @@ int main(){
 
     u8* rom = load_bin("rom.bin", size);
     
-    Bus bus;
+    BUS bus;
 
     cpu.attach_bus(&bus);
     cpu.bus->loadRom(rom, size);

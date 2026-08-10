@@ -233,6 +233,7 @@ std::string format_operands(const Instruction& instr){
   }
 
   switch(instr.fmt){
+    default: return "NONE";
     case Format::R: return std::format("{}, {}, {}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), reg_idx_str(instr.rs2));
     case Format::I: return std::format("{}, {}, {}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), instr.imm);
     case Format::S: return std::format("{}, {}({})",      reg_idx_str(instr.rs2), instr.imm, reg_idx_str(instr.rs1));

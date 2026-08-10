@@ -15,7 +15,8 @@ void CPU::reset(){
     regfile[i] = 0x0;
   }
 
-  pc = T_config.resetVector;
+  // start at reset vector (start of ROM / firmware as of right now)
+  pc = config.reset_vector;
   cycle = 0;
 }
 
@@ -39,7 +40,7 @@ void CPU::step(){
   cycle++;
 }
 
-void CPU::attach_bus(Bus* b){
+void CPU::attach_bus(BUS* b){
   bus = b;
 }
 
@@ -68,12 +69,12 @@ u32 CPU::get_csr(u16 idx) const {
 }
 
 void CPU::store(u32 addr, BITSIZE size, u32 val){
-  if(!bus) Error<std::runtime_error>("Bus not assigned");
+  if(!bus) Error<std::runtime_error>("BUS not assigned");
   bus->store(addr, size, val);
 }
 
 u32 CPU::load(u32 addr, BITSIZE size) {
-  if(!bus) Error<std::runtime_error>("Bus not assigned");
+  if(!bus) Error<std::runtime_error>("BUS not assigned");
   return bus->load(addr, size);
 }
 

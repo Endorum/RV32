@@ -1,57 +1,53 @@
 #include "BUS.hpp"
 
-void Bus::addDevice(const std::string &name, u32 start, u32 size, std::unique_ptr<Device> dev) {
-  MemRegion reg = {name, start, size, std::move(dev)};
+void BUS::addDevice(Device& dev) {
 
-  std::cout << "Adding Device:\n" << reg.str() << std::endl;
+  std::cout << "Adding Device: " << dev.str()  << std::endl;
 
-  regions.push_back(std::move(reg));
+  devices.push_back(&dev);
 }
 
-u32 Bus::load(u32 address, BITSIZE size) const {
+u32 BUS::load(u32 address, BITSIZE size) const {
 
-  if (T_config.B_debug)
-    printf("Bus.load(address: %08X, size: %d): ", address, size);
+  for(auto& dev : devices){
+    u32 start = dev->get_start();
+    u32 mem_size = dev->get_size();
 
-  for (auto &r : regions) {
-    if (r.start <= address && r.start + r.size >= (address + size)) {
-      return r.device->load(address - r.start, size);
+    if(start <= address && start + mem_size >= (address + size)){
+      return dev->load(address - start, size);
     }
+
   }
 
   Error<std::out_of_range>(
-      std::format("Address: {:08X} not mapped", address));
+      std::format("Address: {:08X} - {:08X} not mapped", address, address + size));
 
   return -1;
 }
 
-void Bus::store(u32 address, BITSIZE size, u32 value) {
+void BUS::store(u32 address, BITSIZE size, u32 value) {
+    
+  for(auto& dev : devices){
+    u32 start = dev->get_start();
+    u32 mem_size = dev->get_size();
 
-  for (auto &r : regions) {
-    if (r.start <= address && r.start + r.size >= (address + size)) {
-      r.device->store(address - r.start, size, value);
+    if(start <= address && start + mem_size >= (address + size)){
+      dev->store(address - start, size, value);
       return;
     }
+
   }
 
   Error<std::out_of_range>(
-      std::format("Address: {:08X} not mapped", address));
+      std::format("Address: {:08X} - {:08X} not mapped", address, address + size));
+
 }
 
-std::string Bus::str() const {
+std::string BUS::str() const {
   std::string out =
-      "BUS with " + std::to_string(regions.size()) + " attached devices:\n";
-  for (auto &reg : regions) {
-    out += reg.str() + "\n";
-  }
-  return out;
-}
-
-
-std::string Bus::devices_string() const {
-  std::string out = "";
-  for (auto &reg : regions) {
-    out += reg.device->str() + "\n";
+      "BUS with " + std::to_string(devices.size()) + " attached devices:\n";
+  for (auto &dev : devices) {
+    out += dev->str() + "\n";
   }
   return out;
 }

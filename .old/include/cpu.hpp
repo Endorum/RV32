@@ -8,18 +8,18 @@
 
 #define MEM_SIZE 0x10000
 
-class Bus{
+class BUS{
 public:
-    Bus(){
+    BUS(){
         mem = new u8[MEM_SIZE]{0};
     }
 
-    ~Bus(){ delete[] mem; }
+    ~BUS(){ delete[] mem; }
 
     u32 read(u32 addr, u32 size) {
         if (addr + size > MEM_SIZE) {
             // simple out-of-bounds check
-            std::cerr << "Bus read out-of-bounds: " << std::hex << addr << "\n";
+            std::cerr << "BUS read out-of-bounds: " << std::hex << addr << "\n";
             return 0;
         }
 
@@ -33,7 +33,7 @@ public:
 
     void write(u32 addr, u32 size, u32 value) {
         if (addr + size > MEM_SIZE) {
-            std::cerr << "Bus write out-of-bounds: " << std::hex << addr << "\n";
+            std::cerr << "BUS write out-of-bounds: " << std::hex << addr << "\n";
             return;
         }
 
@@ -160,7 +160,7 @@ class RV32{
 public:
     RV32() {}
 
-    void attach_bus(Bus* bus) { this->bus = bus; }
+    void attach_bus(BUS* bus) { this->bus = bus; }
 
     void reset(){
         pc = 0;
@@ -194,7 +194,7 @@ public:
     CSRUnit csr;
 
     
-    Bus* bus = nullptr;
+    BUS* bus = nullptr;
     
     void IF();
     

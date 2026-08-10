@@ -20,7 +20,9 @@ public:
   void reset();
   void step();
 
-  void attach_bus(Bus* b);
+  void attach_bus(BUS* b);
+
+  void set_config(const Config& c){ config = c; }
 
 private:
   u32 regfile[32];
@@ -28,7 +30,9 @@ private:
   u32 pc;
   u64 cycle;
 
-  Bus* bus = nullptr;
+  BUS* bus = nullptr;
+
+  Config config;
 
   u32 rs1;
   u32 rs2;
