@@ -265,4 +265,15 @@ enum class CSR_ADDR : u16
   mconfigptr = 0xF15,
 };
 
+
+
+// csr stuff
+#define MSTATUS_MIE (1u << 3)
+#define MSTATUS_MPIE (1u << 7)
+#define MSTATUS_MPP (3u << 11)
+
+
+
+
 #endif // DEFS_HPP
+

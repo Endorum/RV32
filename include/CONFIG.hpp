@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "DEFS.hpp"
+#include "MAP.h"
 
 std::string breakpoints_str(const std::vector<u32> &bp);
 
@@ -48,13 +49,17 @@ struct Config {
   std::string removable_path = "";
 
   u32 reset_vector = 0x0;
+  u32 tohost_address = 0x0;
+
+  u32 ram_start = RAM_START;
+  u32 ram_size = RAM_SIZE;
+  u32 rom_start = ROM_START;
+  u32 rom_size = ROM_SIZE;
+  u32 hd_start = HD_START;
+  u32 hd_size = HD_SIZE;
 };
 
-struct CLIArgument {
-  std::string S_type;
-  std::string S_value;
-};
-
-void parseArgument(CLIArgument arg, Config& config);
+Config parse_arguments(int argc, char** argv);
+std::string breakpoints_str(const std::vector<u32> &bp);
 
 #endif // CONFIG_HPP

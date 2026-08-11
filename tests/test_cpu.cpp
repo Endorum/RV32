@@ -288,6 +288,260 @@ static void test_x0_stays_zero() {
   });
 }
 
+// ------------------------------------------------------------ Zicsr
+//
+// mscratch (0x340) is used as the guinea-pig CSR: architecturally it's a
+// plain read/write scratch register with no side effects.
+//
+// Not tested (not observable with the flat csr[] array): that csrrs/csrrc
+// with rs1=x0 performs NO write. "Writes the old value back" and "doesn't
+// write" look identical until read-only CSRs trap on write — pin it then.
+
+static void test_csrrw_swap() {
+  guarded("csrrw swap", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x11100293, // addi  t0, x0, 0x111
+      0x34029073, // csrw  mscratch, t0        mscratch = 0x111
+      0x22200313, // addi  t1, x0, 0x222
+      0x340313F3, // csrrw t2, mscratch, t1    t2 = old (0x111), mscratch = 0x222
+      0x34002E73, // csrr  t3, mscratch        t3 = 0x222
+      0x20702023, // sw    t2, 0x200(x0)
+      0x21C02223, // sw    t3, 0x204(x0)
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x111); // rd got the OLD value
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x222); // CSR got rs1
+  });
+}
+
+static void test_csrrs_sets_bits() {
+  guarded("csrrs", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x0F000293, // addi  t0, x0, 0xF0
+      0x34029073, // csrw  mscratch, t0        mscratch = 0xF0
+      0x00F00313, // addi  t1, x0, 0x0F
+      0x340323F3, // csrrs t2, mscratch, t1    t2 = 0xF0, mscratch |= 0x0F
+      0x34002E73, // csrr  t3, mscratch
+      0x20702023, // sw    t2, 0x200(x0)
+      0x21C02223, // sw    t3, 0x204(x0)
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0xF0);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0xFF);
+  });
+}
+
+static void test_csrrc_clears_bits() {
+  guarded("csrrc", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x0FF00293, // addi  t0, x0, 0xFF
+      0x34029073, // csrw  mscratch, t0        mscratch = 0xFF
+      0x00F00313, // addi  t1, x0, 0x0F
+      0x340333F3, // csrrc t2, mscratch, t1    t2 = 0xFF, mscratch &= ~0x0F
+      0x34002E73, // csrr  t3, mscratch
+      0x20702023, // sw    t2, 0x200(x0)
+      0x21C02223, // sw    t3, 0x204(x0)
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0xFF);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0xF0);
+  });
+}
+
+static void test_csrrw_x0_still_writes() {
+  // asymmetry: rs1=x0 suppresses the write for csrrs/csrrc, but csrrw
+  // ALWAYS writes — here it must zero the CSR
+  guarded("csrrw x0 writes", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x12300293, // addi  t0, x0, 0x123
+      0x34029073, // csrw  mscratch, t0        mscratch = 0x123
+      0x34001373, // csrrw t1, mscratch, x0    t1 = 0x123, mscratch = 0
+      0x34002E73, // csrr  t3, mscratch        t3 = 0
+      0x20602023, // sw    t1, 0x200(x0)
+      0x21C02223, // sw    t3, 0x204(x0)
+    }, 6);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x123);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0);
+  });
+}
+
+static void test_csrrwi_uses_field_not_register() {
+  // uimm = 5 is also the index of t0, which holds a sentinel: an
+  // implementation that wrongly reads regfile[uimm] writes 0x7FF instead of 5
+  guarded("csrrwi field", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x7FF00293, // addi   t0, x0, 0x7FF      sentinel in x5
+      0x3402D073, // csrrwi x0, mscratch, 5    mscratch = 5 (the field itself)
+      0x34002373, // csrr   t1, mscratch
+      0x20602023, // sw     t1, 0x200(x0)
+    }, 4);
+    CHECK_EQ(bus.load(RESULT0, WORD), 5);
+  });
+}
+
+static void test_csrrsi_csrrci() {
+  guarded("csrrsi/csrrci", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x34085073, // csrrwi x0, mscratch, 16   mscratch = 0x10
+      0x3401E373, // csrrsi t1, mscratch, 3    t1 = 0x10, mscratch = 0x13
+      0x340173F3, // csrrci t2, mscratch, 2    t2 = 0x13, mscratch = 0x11
+      0x34002E73, // csrr   t3, mscratch
+      0x20602023, // sw     t1, 0x200(x0)
+      0x20702223, // sw     t2, 0x204(x0)
+      0x21C02423, // sw     t3, 0x208(x0)
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x10);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x13);
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x11);
+  });
+}
+
+static void test_csr_high_address() {
+  // csr 0xBC0 has bit 11 set -> the sign-extended I-imm is negative; the
+  // & 0xFFF in execute must recover the address (else: OOB csr[] index)
+  guarded("csr high addr", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x07700293, // addi t0, x0, 0x77
+      0xBC029073, // csrw 0xbc0, t0
+      0xBC002373, // csrr t1, 0xbc0
+      0x20602023, // sw   t1, 0x200(x0)
+    }, 4);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x77);
+  });
+}
+
+static void test_csrrw_rd_equals_rs1() {
+  // csrrw t0, mscratch, t0 — old CSR and old t0 must swap cleanly
+  guarded("csrrw alias", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x0AA00293, // addi  t0, x0, 0xAA
+      0x34029073, // csrw  mscratch, t0        mscratch = 0xAA
+      0x0BB00293, // addi  t0, x0, 0xBB
+      0x340292F3, // csrrw t0, mscratch, t0    t0 = 0xAA, mscratch = 0xBB
+      0x20502023, // sw    t0, 0x200(x0)
+      0x34002373, // csrr  t1, mscratch
+      0x20602223, // sw    t1, 0x204(x0)
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0xAA);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0xBB);
+  });
+}
+
+// ------------------------------------------------------------- traps
+//
+// Layout of these programs: main flow at 0x0, nop padding, trap handler
+// further up (address loaded into mtvec at the start). Results observed
+// via stores, as always.
+
+static void test_ecall_roundtrip() {
+  // ecall -> handler reads mepc/mcause, steps mepc past the ecall, mret,
+  // main flow continues after the ecall
+  guarded("ecall roundtrip", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40     handler address
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x00000073, // 0x08: ecall                 -> handler
+      0x02A00313, // 0x0C: addi t1, x0, 42       (must run AFTER the handler)
+      0x20602023, // 0x10: sw   t1, 0x200(x0)
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013,
+      0x341023F3, // 0x40: csrr t2, mepc
+      0x20702223, // 0x44: sw   t2, 0x204(x0)    RESULT1 = mepc
+      0x342023F3, // 0x48: csrr t2, mcause
+      0x20702423, // 0x4C: sw   t2, 0x208(x0)    RESULT2 = mcause
+      0x341023F3, // 0x50: csrr t2, mepc
+      0x00438393, // 0x54: addi t2, t2, 4        step past the ecall
+      0x34139073, // 0x58: csrw mepc, t2
+      0x30200073, // 0x5C: mret                  -> 0x0C
+    }, 13);
+    CHECK_EQ(bus.load(RESULT0, WORD), 42);   // came back and continued
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x08); // mepc = address of the ecall itself
+    CHECK_EQ(bus.load(RESULT2, WORD), 11);   // mcause = ecall from M-mode
+  });
+}
+
+static void test_ebreak_cause_and_tval() {
+  // ebreak -> mcause=3, mtval and mepc both hold the ebreak's address.
+  // No mret here; the test ends inside the handler.
+  guarded("ebreak cause/tval", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x02000293, // 0x00: addi t0, x0, 0x20     handler address
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x00100073, // 0x08: ebreak                -> handler
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x342023F3, // 0x20: csrr t2, mcause
+      0x20702023, // 0x24: sw   t2, 0x200(x0)    RESULT0 = mcause
+      0x343023F3, // 0x28: csrr t2, mtval
+      0x20702223, // 0x2C: sw   t2, 0x204(x0)    RESULT1 = mtval
+      0x341023F3, // 0x30: csrr t2, mepc
+      0x20702423, // 0x34: sw   t2, 0x208(x0)    RESULT2 = mepc
+    }, 9);
+    CHECK_EQ(bus.load(RESULT0, WORD), 3);    // breakpoint
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x08); // mtval = ebreak address
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x08); // mepc  = ebreak address
+  });
+}
+
+static void test_mstatus_push_pop() {
+  // MIE on -> trap pushes it (MPIE<-MIE, MIE<-0, MPP<-3), mret pops it back
+  guarded("mstatus push/pop", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40     handler address
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x30046073, // 0x08: csrrsi x0, mstatus, 8 MIE <- 1
+      0x00000073, // 0x0C: ecall                 -> handler
+      0x30002373, // 0x10: csrr t1, mstatus      (after mret)
+      0x20602423, // 0x14: sw   t1, 0x208(x0)    RESULT2 = restored mstatus
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x300023F3, // 0x40: csrr t2, mstatus      (inside handler)
+      0x20702023, // 0x44: sw   t2, 0x200(x0)    RESULT0 = in-trap mstatus
+      0x341023F3, // 0x48: csrr t2, mepc
+      0x00438393, // 0x4C: addi t2, t2, 4
+      0x34139073, // 0x50: csrw mepc, t2
+      0x30200073, // 0x54: mret                  -> 0x10
+    }, 12);
+    // in handler: MIE(3)=0, MPIE(7)=1, MPP(12:11)=3 -> 0x1880
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x1880);
+    // after mret: MIE restored to 1, MPIE=1, MPP stays M -> 0x1888
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x1888);
+  });
+}
+
+static void test_wfi_is_nop() {
+  // no interrupts exist yet -> spec allows WFI to complete as a nop
+  guarded("wfi nop", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x10500073, // wfi
+      0x02A00313, // addi t1, x0, 42
+      0x20602023, // sw   t1, 0x200(x0)
+    }, 3);
+    CHECK_EQ(bus.load(RESULT0, WORD), 42);
+  });
+}
+
 // ---------------------------------------------------------------- entry
 
 void run_cpu_tests() {
@@ -304,4 +558,16 @@ void run_cpu_tests() {
   test_jalr_target_masked_and_link();
   test_lui_auipc();
   test_x0_stays_zero();
+  test_csrrw_swap();
+  test_csrrs_sets_bits();
+  test_csrrc_clears_bits();
+  test_csrrw_x0_still_writes();
+  test_csrrwi_uses_field_not_register();
+  test_csrrsi_csrrci();
+  test_csr_high_address();
+  test_csrrw_rd_equals_rs1();
+  test_ecall_roundtrip();
+  test_ebreak_cause_and_tval();
+  test_mstatus_push_pop();
+  test_wfi_is_nop();
 }

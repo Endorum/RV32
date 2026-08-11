@@ -194,6 +194,30 @@ static void test_system() {
   CHECK(decode(0x00000073, 0).op == Op::ECALL);
   CHECK(decode(0x00100073, 0).op == Op::EBREAK);
   CHECK(decode(0x0FF0000F, 0).op == Op::FENCE); // fence iorw, iorw
+
+  // Zicsr: funct3 selects the op, funct3 bit 2 = "operand is the immediate"
+  CHECK(decode(0x340313F3, 0).op == Op::CSRRW);   // csrrw  t2, mscratch, t1
+  CHECK(decode(0x340323F3, 0).op == Op::CSRRS);   // csrrs  t2, mscratch, t1
+  CHECK(decode(0x340333F3, 0).op == Op::CSRRC);   // csrrc  t2, mscratch, t1
+  CHECK(decode(0x3402D073, 0).op == Op::CSRRWI);  // csrrwi x0, mscratch, 5
+  CHECK(decode(0x3401E373, 0).op == Op::CSRRSI);  // csrrsi t1, mscratch, 3
+  CHECK(decode(0x340173F3, 0).op == Op::CSRRCI);  // csrrci t2, mscratch, 2
+  CHECK(decode(0x00004073, 0).op == Op::INVALID); // funct3=4 is reserved
+
+  // the CSR address rides in the I-immediate; & 0xFFF must recover it even
+  // after sign-extension made it negative (csr >= 0x800)
+  CHECK((decode(0x340313F3, 0).imm & 0xFFF) == 0x340);
+  CHECK((decode(0xBC029073, 0).imm & 0xFFF) == 0xBC0);
+
+  // in the I-variants the rs1 field is the zimm itself, not a register index
+  CHECK(decode(0x3402D073, 0).rs1 == 5);
+
+  // PRIV subgroup (funct3=0) dispatches on funct12 — and unknown funct12
+  // must be INVALID, not silently ECALL
+  CHECK(decode(0x30200073, 0).op == Op::MRET);    // mret  (funct12 0x302)
+  CHECK(decode(0x10500073, 0).op == Op::WFI);     // wfi   (funct12 0x105)
+  CHECK(decode(0x10200073, 0).op == Op::INVALID); // sret -> S-mode, not supported
+  CHECK(decode(0x30200073, 0).mnemonic == "mret");
 }
 
 // -------------------------------------------------- mnemonic / disassembly

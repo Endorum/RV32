@@ -61,6 +61,9 @@ enum class Op
   CSRRSI,
   CSRRCI,
 
+  WFI,
+  MRET,
+
 
   INVALID,
 

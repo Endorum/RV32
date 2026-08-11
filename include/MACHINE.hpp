@@ -49,9 +49,9 @@ private:
   BUS bus;
   CPU cpu;
 
-  ROM rom{ROM_START, ROM_SIZE};
-  RAM ram{RAM_START, RAM_SIZE};
-  HD  hd{HD_START, HD_SIZE};
+  ROM rom{config.rom_start, config.rom_size};
+  RAM ram{config.ram_start, config.ram_size};
+  HD  hd{config.hd_start, config.hd_size};
   
 };
 

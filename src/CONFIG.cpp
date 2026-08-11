@@ -1,39 +1,115 @@
 #include "../include/CONFIG.hpp"
 #include "../include/UTILS.hpp"
 
-void parseArgument(CLIArgument arg, Config& config) {
-  
-  if (arg.S_type == "d") {
-    config.debug = S_to_B(arg.S_value);
-  }
-  else if (arg.S_type == "l") {
-    config.log = S_to_B(arg.S_value);
-  }
-  else if (arg.S_type == "s") {
-    config.step = S_to_B(arg.S_value);
-  } else if (arg.S_type == "b") {
+Config parse_arguments(int argc, char** argv){
+  Config config;
+  for(int i=1;i<argc;i++){
+    std::string arg = std::string(argv[i] + 1);
+    if(arg == "d"){
+      config.debug = true;
+    }else if(arg == "l"){
+      config.log = true;
+    }else if(arg == "s"){
+      config.step = true;
+    }else{
+      
+      std::string left_side;
+      std::string right_side;
 
-    u32 bp = 0;
-    try {
-      bp = std::strtoul(arg.S_value.c_str(), nullptr, 16);
-    } catch (std::exception E) {
-      Error<std::invalid_argument>("Invalid breakpoint address");
+      size_t pos = arg.find('=');
+      if(pos != std::string::npos){
+        left_side = arg.substr(0, pos);
+        right_side = arg.substr(pos + 1);
+      }else{
+        Error<std::invalid_argument>("Expected right side after '='");
+      }
+
+      if(left_side == "b"){
+        u32 bp = 0;
+        try {
+          bp = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid breakpoint address");
+        }
+        config.breakpoints.push_back(bp);
+      }
+      else if(left_side == "reset_vector"){
+        try {
+          config.reset_vector = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid reset_vector address");
+        }
+      }
+      else if(left_side == "tohost"){
+        try {
+          config.tohost_address = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid tohost address");
+        }
+      }
+      else if(left_side == "ram_start"){
+        try {
+          config.ram_start = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid ram_start address");
+        }
+      }
+      else if(left_side == "ram_size"){
+        try {
+          config.ram_size = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid ram_size address");
+        }
+      }
+      else if(left_side == "rom_start"){
+        try {
+          config.rom_start = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid rom_start address");
+        }
+      }
+      else if(left_side == "rom_size"){
+        try {
+          config.rom_size = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid rom_size address");
+        }
+      }
+      else if(left_side == "hd_start"){
+        try {
+          config.hd_start = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid hd_start address");
+        }
+      }
+      else if(left_side == "hd_size"){
+        try {
+          config.hd_size = std::stoul(right_side.c_str(), nullptr, 16);
+        }
+        catch(std::exception E) {
+          Error<std::invalid_argument>("Invalid hd_size address");
+        }
+      }
+      else if(left_side == "firmware"){
+        config.firmware_path = right_side;
+      }else if(left_side == "harddisk"){
+        config.harddisk_path = right_side;
+      }else if(left_side == "removeable"){
+        config.removable_path = right_side;
+      }else{
+        Error<std::invalid_argument>("Commandline option'" + left_side + "' not supported! ");
+      }
     }
-
-    config.breakpoints.push_back(bp);
-
   }
-
-  else if (arg.S_type == "firmware") {
-    config.firmware_path = arg.S_value;
-  } else if (arg.S_type == "disk") {
-    config.harddisk_path = arg.S_value;
-  } else if (arg.S_type == "removable") {
-    config.removable_path = arg.S_value;
-  } else {
-    Error<std::invalid_argument>("commandline option'" + arg.S_type +
-                                 "' not supported! ");
-  }
+  return config;
 }
 
 std::string breakpoints_str(const std::vector<u32> &bp) {

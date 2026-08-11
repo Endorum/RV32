@@ -72,6 +72,12 @@ i32 get_immediate(Format fmt, u32 word){
   }
 }
 
+/*
+
+001100000010 00000 000 00000 1110011
+
+*/
+
 Op get_op(const Instruction& instr){
 
   // gets indexed using funct3
@@ -80,7 +86,7 @@ Op get_op(const Instruction& instr){
   static constexpr Op LOAD_OP[]    = {Op::LB, Op::LH, Op::LW, Op::INVALID, Op::LBU, Op::LHU, Op::INVALID, Op::INVALID};
   static constexpr Op STORE_OP[]   = {Op::SB, Op::SH, Op::SW, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID};
   static constexpr Op BRANCH_OP[]  = {Op::BEQ, Op::BNE, Op::INVALID, Op::INVALID, Op::BLT, Op::BGE, Op::BLTU, Op::BGEU};
-  static constexpr Op SYSTEM_OP[]  = {Op::ECALL, Op::CSRRW, Op::CSRRS, Op::CSRRC, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID};
+  static constexpr Op SYSTEM_OP[]  = {Op::INVALID, Op::CSRRW, Op::CSRRS, Op::CSRRC, Op::INVALID, Op::CSRRWI, Op::CSRRSI, Op::CSRRCI};
 
   switch(instr.type){
     default: return Op::INVALID;
@@ -125,9 +131,16 @@ Op get_op(const Instruction& instr){
       return Op::FENCE;
 
     case BaseType::SYSTEM:{
-      Op op = SYSTEM_OP[instr.funct3];
-      if(op == Op::ECALL && instr.imm == 0x1) return Op::EBREAK;
-      return op;
+      if(instr.funct3 == 0x0){
+        switch(instr.imm & 0xFFF){
+          case 0x000: return Op::ECALL;
+          case 0x001: return Op::EBREAK;
+          case 0x105: return Op::WFI;
+          case 0x302: return Op::MRET;
+          default: return Op::INVALID;
+        }
+      }
+      return SYSTEM_OP[instr.funct3];
     }
       
       
@@ -190,6 +203,9 @@ std::string get_mnemonic(const Op& op){
     case Op::CSRRSI: return "csrrsi";
     case Op::CSRRCI: return "csrrci";
 
+    case Op::WFI: return "wfi";
+    case Op::MRET: return "mret";
+
     case Op::INVALID: return "INVALID";
   }
 }
@@ -235,11 +251,11 @@ std::string format_operands(const Instruction& instr){
   switch(instr.fmt){
     default: return "NONE";
     case Format::R: return std::format("{}, {}, {}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), reg_idx_str(instr.rs2));
-    case Format::I: return std::format("{}, {}, {}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), instr.imm);
+    case Format::I: return std::format("{}, {}, {} # {:#x}",      reg_idx_str(instr.rd), reg_idx_str(instr.rs1), instr.imm, (u32)instr.imm);
     case Format::S: return std::format("{}, {}({})",      reg_idx_str(instr.rs2), instr.imm, reg_idx_str(instr.rs1));
-    case Format::B: return std::format("{}, {}, {:#x}\t\t# {:+}",  reg_idx_str(instr.rs1), reg_idx_str(instr.rs2), instr.addr + instr.imm, instr.imm);
+    case Format::B: return std::format("{}, {}, {:#x} # {:+}",  reg_idx_str(instr.rs1), reg_idx_str(instr.rs2), instr.addr + instr.imm, instr.imm);
     case Format::U: return std::format("{}, {:#x}", reg_idx_str(instr.rd), (u32)instr.imm);
-    case Format::J: return std::format("{}, {:#x}\t\t# {:+}", reg_idx_str(instr.rd), instr.addr + instr.imm, instr.imm);
+    case Format::J: return std::format("{}, {:#x} # {:+}", reg_idx_str(instr.rd), instr.addr + instr.imm, instr.imm);
   }
 
   return "???";

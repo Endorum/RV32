@@ -40,14 +40,17 @@ private:
   std::string current_dis;
   u32 last_addr_used = 0x0;
 
-  u32 rs1;
-  u32 rs2;
+  u32 rs1_value;
+  u32 rs2_value;
 
   void set_reg(u8 idx, u32 val);
   u32  get_reg(u8 idx) const;
 
   void set_csr(u16 idx, u32 val);
+  void set_csr(CSR_ADDR idx, u32 val) { set_csr(static_cast<u16>(idx), val); }
+  
   u32  get_csr(u16 idx) const;
+  u32  get_csr(CSR_ADDR idx) const { return get_csr( static_cast<u16>(idx)); }
 
   void store(u32 addr, BITSIZE size, u32 val);
   u32  load(u32 addr, BITSIZE size);
@@ -65,6 +68,8 @@ private:
   u32 alu_or(u32 a, u32 b);
   u32 alu_and(u32 a, u32 b);
 
+  void enter_trap(u32 trap_addr, u32 cause, u32 tval);
+  void mret();
 };
 
 

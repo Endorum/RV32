@@ -9,11 +9,11 @@ u32 RAM::load(u32 addr, BITSIZE size) {
     u32 page_num = address / PAGE_SIZE;
     u32 page_off = address % PAGE_SIZE;
 
-    if (page_num >= PAGE_AMOUNT) {
+    if (page_num >= page_amount) {
       Error<std::runtime_error>(
           std::format("Memory access out of range, page number: {}, max page "
                       "amount: {}\n",
-                      page_num, PAGE_AMOUNT));
+                      page_num, page_amount));
     }
 
     auto &page = pages[page_num];
@@ -37,11 +37,11 @@ void RAM::store(u32 addr, BITSIZE size, u32 value) {
     u32 page_num = address / PAGE_SIZE;
     u32 page_off = address % PAGE_SIZE;
 
-    if (page_num >= PAGE_AMOUNT) {
+    if (page_num >= page_amount) {
       Error<std::runtime_error>(
           std::format("Memory access out of range, page number: {}, max page "
                       "amount: {}\n",
-                      page_num, PAGE_AMOUNT));
+                      page_num, page_amount));
     }
 
     auto &page = pages[page_num];
