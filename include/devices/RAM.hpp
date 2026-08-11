@@ -18,12 +18,14 @@
 class RAM : public Device {
 public:
   explicit RAM(u32 start, u32 size) : Device(start, size, "RAM") {
-    page_amount = get_config().ram_size / PAGE_SIZE;
+    page_amount = size / PAGE_SIZE;
   }
-
+ 
   u32 load(u32 addr, BITSIZE size) override;
 
   void store(u32 addr, BITSIZE size, u32 value) override;
+
+  
 
 private:
   std::unordered_map<u32, std::unique_ptr<u8[]>> pages;
