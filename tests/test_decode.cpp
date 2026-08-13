@@ -6,9 +6,6 @@
 // builds) and aborts on the first failure; these macros report every
 // failure with file:line and let the run finish.
 
-#include <cstdio>
-#include <sstream>
-#include <stdexcept>
 #include <string>
 
 #include "../include/DECODE.hpp"
@@ -235,29 +232,11 @@ static void test_strings() {
 // ------------------------------------------------------- invalid opcodes
 
 static void test_invalid_opcode_throws() {
-  // decode() currently throws on opcodes outside BaseType. If this ever
-  // becomes an illegal-instruction trap instead, update these on purpose.
-  // (cerr is swallowed here so Error<>'s print doesn't pollute the output.)
-  std::ostringstream sink;
-  std::streambuf* old = std::cerr.rdbuf(sink.rdbuf());
-
-  bool threw = false;
-  try {
-    decode(0x00000000, 0);
-  } catch (const std::runtime_error&) {
-    threw = true;
-  }
-  CHECK(threw);
-
-  threw = false;
-  try {
-    decode(0xFFFFFFFF, 0);
-  } catch (const std::runtime_error&) {
-    threw = true;
-  }
-  CHECK(threw);
-
-  std::cerr.rdbuf(old);
+  // Contract since the illegal-instruction trap (2026-08-13): decode() does
+  // NOT throw on unknown opcodes — it yields Op::INVALID and execute raises
+  // enter_trap(cause 2). Deliberately updated from the old throwing contract.
+  CHECK(decode(0x00000000, 0).op == Op::INVALID);
+  CHECK(decode(0xFFFFFFFF, 0).op == Op::INVALID);
 }
 
 // ---------------------------------------------------------------- entry

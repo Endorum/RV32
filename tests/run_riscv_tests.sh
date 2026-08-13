@@ -1,17 +1,21 @@
 #!/bin/bash
 #
-# Run the official riscv-tests ISA suites (rv32ui-p-*, rv32mi-p-*) against
-# the emulator and print a result table.
+# Run the official riscv-tests ISA suites (or single tests) against the
+# emulator and print a result table.
 #
-#   tests/run_riscv_tests.sh              # both suites
-#   tests/run_riscv_tests.sh rv32ui       # one suite
+#   tests/run_riscv_tests.sh                     # both suites
+#   tests/run_riscv_tests.sh rv32ui              # one suite
+#   tests/run_riscv_tests.sh rv32mi-p-mcsr       # a single test
+#   tests/run_riscv_tests.sh rv32ui rv32mi-p-csr # mix is fine
+#   TRACE=1 tests/run_riscv_tests.sh rv32mi-p-mcsr   # run with -l, trace -> <elf>.log
 #   RISCV_TESTS=/path/to/riscv-tests/isa tests/run_riscv_tests.sh
 #
 # Per test: objcopy ELF -> flat .bin, read the tohost symbol address via nm,
 # run the emulator with the riscv-tests memory layout. The TOHOST device
 # prints PASS/"FAIL test n" and exits; a wall-clock alarm catches hangs.
+# On a non-PASS result the last lines of emulator output are shown.
 
-set -x
+# set -x
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EMU="$ROOT/build/main"
@@ -19,47 +23,75 @@ ISA_DIR="${RISCV_TESTS:-$ROOT/../riscv-tests/isa}"
 OBJCOPY="${RISCV_PREFIX:-riscv64-elf-}objcopy"
 NM="${RISCV_PREFIX:-riscv64-elf-}nm"
 TIMEOUT_S=10
+TRACE="${TRACE:-}"
+
+
 
 [ -x "$EMU" ] || { echo "error: emulator not built: $EMU" >&2; exit 1; }
 [ -d "$ISA_DIR" ] || { echo "error: riscv-tests not found: $ISA_DIR" >&2; exit 1; }
 
-SUITES=("${@:-rv32ui rv32mi}")
-# shellcheck disable=SC2068
-read -ra SUITES <<< "${SUITES[@]}"
-
-pass=0; fail=0; err=0
-results=""
-
-for suite in "${SUITES[@]}"; do
-  for elf in "$ISA_DIR/$suite"-p-*; do
-    case "$elf" in *.dump|*.bin) continue ;; esac
-    name="$(basename "$elf")"
-
-    "$OBJCOPY" -O binary "$elf" "$elf.bin"
-    tohost="0x$("$NM" "$elf" | awk '$3=="tohost"{print $1}')"
-
-    # perl alarm = portable timeout (macOS has no coreutils timeout)
-    out="$(perl -e 'alarm shift @ARGV; exec @ARGV' "$TIMEOUT_S" \
-      "$EMU" "-firmware=$elf.bin" -l -reset_vector=0x80000000 \
-      -ram_start=0x80000000 "-tohost=$tohost" 2>&1)"
-    code=$?
-
-    if echo "$out" | grep -q "^PASS"; then
-      status="PASS"; pass=$((pass+1))
-    elif echo "$out" | grep -q "FAIL test"; then
-      n="$(echo "$out" | grep -o 'FAIL test [0-9]*' | awk '{print $3}')"
-      status="FAIL (test $n)"; fail=$((fail+1))
-    elif [ $code -ge 128 ]; then
-      status="TIMEOUT"; err=$((err+1))
+# resolve args (suites or single test names) into a list of ELF paths
+elfs=()
+for arg in "${@:-rv32ui rv32mi}"; do
+  # shellcheck disable=SC2086
+  for word in $arg; do
+    if [ -f "$ISA_DIR/$word" ]; then
+      elfs+=("$ISA_DIR/$word")               # single test, e.g. rv32mi-p-mcsr
     else
-      reason="$(echo "$out" | grep -m1 -o 'ERROR: .*' || echo "exit $code")"
-      status="ERROR ($reason)"; err=$((err+1))
+      found=0
+      for elf in "$ISA_DIR/$word"-p-*; do    # suite, e.g. rv32ui
+        case "$elf" in *.dump|*.bin|*.log) continue ;; esac
+        [ -f "$elf" ] && { elfs+=("$elf"); found=1; }
+      done
+      [ $found -eq 1 ] || { echo "error: no such test or suite: $word" >&2; exit 1; }
     fi
-    results+="$(printf '%-28s %s' "$name" "$status")"$'\n'
   done
 done
 
-echo "$results"
+pass=0; fail=0; err=0
+
+for elf in "${elfs[@]}"; do
+  name="$(basename "$elf")"
+
+  "$OBJCOPY" -O binary "$elf" "$elf.bin"
+  tohost="0x$("$NM" "$elf" | awk '$3=="tohost"{print $1}')"
+
+  trace_flag=()
+  [ -n "$TRACE" ] && trace_flag=(-l)
+
+  # perl alarm = portable timeout (macOS has no coreutils timeout)
+  out="$(perl -e 'alarm shift @ARGV; exec @ARGV' "$TIMEOUT_S" \
+    "$EMU" "-firmware=$elf.bin" "${trace_flag[@]+"${trace_flag[@]}"}" \
+    -reset_vector=0x80000000 -ram_start=0x80000000 "-tohost=$tohost" 2>&1)"
+  code=$?
+
+  if [ -n "$TRACE" ]; then
+    printf '%s\n' "$out" > "$elf.log"
+  fi
+
+  if echo "$out" | grep -q "^PASS"; then
+    status="PASS"; pass=$((pass+1))
+  elif echo "$out" | grep -q "FAIL"; then
+    # tolerate any FAIL wording ("FAIL test n", "TOHOST FAIL WITH CODE n", ...)
+    n="$(echo "$out" | grep -m1 'FAIL' | grep -o '[0-9]*' | tail -1)"
+    status="FAIL (test ${n:-?})"; fail=$((fail+1))
+  elif [ $code -ge 128 ]; then
+    status="TIMEOUT"; err=$((err+1))
+  else
+    reason="$(echo "$out" | grep -m1 -o 'ERROR: .*' || echo "exit $code")"
+    status="ERROR ($reason)"; err=$((err+1))
+  fi
+
+  printf '%-28s %s\n' "$name" "$status"
+  [ -n "$TRACE" ] && printf '%-28s trace: %s\n' "" "$elf.log"
+
+  # for a failing single test, show the tail of the output right away
+  if [ "${#elfs[@]}" -eq 1 ] && [ "$status" != "PASS" ]; then
+    echo "--- last output lines:"
+    printf '%s\n' "$out" | tail -8
+  fi
+done
+
 echo "----------------------------------------"
 echo "PASS: $pass   FAIL: $fail   ERROR/TIMEOUT: $err"
 [ $((fail+err)) -eq 0 ]

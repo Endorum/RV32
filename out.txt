@@ -53,9 +53,9 @@ rv32mi-p-pmpaddr             PASS
 rv32mi-p-sbreak              PASS
 rv32mi-p-scall               PASS
 rv32mi-p-sh-misaligned       PASS
-rv32mi-p-shamt               TIMEOUT
+rv32mi-p-shamt               PASS
 rv32mi-p-sw-misaligned       PASS
 rv32mi-p-zicntr              PASS
 
 ----------------------------------------
-PASS: 52   FAIL: 0   ERROR/TIMEOUT: 6
+PASS: 53   FAIL: 0   ERROR/TIMEOUT: 5

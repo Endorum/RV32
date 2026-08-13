@@ -81,17 +81,18 @@ enum class Format
 };
 
 enum class BaseType : u8 {
-    ALU_R   = 0b0110011,
-    ALU_I   = 0b0010011,
-    LOAD    = 0b0000011,
-    STORE   = 0b0100011,
-    BRANCH  = 0b1100011,
-    JAL     = 0b1101111,
-    JALR    = 0b1100111,
-    LUI     = 0b0110111,
-    AUIPC   = 0b0010111,
-    FENCE   = 0b0001111,
-    SYSTEM  = 0b1110011,
+  INVALID = 0,
+  ALU_R   = 0b0110011,
+  ALU_I   = 0b0010011,
+  LOAD    = 0b0000011,
+  STORE   = 0b0100011,
+  BRANCH  = 0b1100011,
+  JAL     = 0b1101111,
+  JALR    = 0b1100111,
+  LUI     = 0b0110111,
+  AUIPC   = 0b0010111,
+  FENCE   = 0b0001111,
+  SYSTEM  = 0b1110011,
 };
 
 typedef struct Instruction{
@@ -126,5 +127,6 @@ Op get_op(const Instruction& instr);
 std::string get_mnemonic(const Op& op);
 Instruction decode(u32 word, u32 addr);
 std::string disassemble(const Instruction& instr);
+void validate(Instruction& instr);
 
 #endif // DECODE_HPP

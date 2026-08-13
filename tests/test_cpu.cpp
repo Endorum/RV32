@@ -528,6 +528,28 @@ static void test_mstatus_push_pop() {
   });
 }
 
+static void test_reset_csr_values() {
+  // capability CSRs after reset: misa says RV32I (MXL=1, I-bit), mstatus
+  // says MPP=M — and misa must be write-protected by the WARL mask
+  guarded("reset csr values", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30102373, // csrr  t1, misa
+      0x20602023, // sw    t1, 0x200(x0)      RESULT0 = misa after reset
+      0x30002E73, // csrr  t3, mstatus
+      0x21C02423, // sw    t3, 0x208(x0)      RESULT2 = mstatus after reset
+      0xFFF00293, // addi  t0, x0, -1
+      0x30129073, // csrw  misa, t0           write attempt must bounce off
+      0x301023F3, // csrr  t2, misa
+      0x20702223, // sw    t2, 0x204(x0)      RESULT1 = misa after write
+    }, 8);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x40000100); // MXL=1 (RV32) | I
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x40000100); // unchanged: read-only
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x00001800); // MPP=3, rest clear
+  });
+}
+
 static void test_wfi_is_nop() {
   // no interrupts exist yet -> spec allows WFI to complete as a nop
   guarded("wfi nop", [] {
@@ -569,5 +591,6 @@ void run_cpu_tests() {
   test_ecall_roundtrip();
   test_ebreak_cause_and_tval();
   test_mstatus_push_pop();
+  test_reset_csr_values();
   test_wfi_is_nop();
 }

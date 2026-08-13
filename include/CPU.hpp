@@ -28,6 +28,8 @@ public:
   u32 get_cycle(){return cycle;}
   std::string state_str();
 
+  bool get_halted() { return halted; }
+
 private:
   u32 regfile[32];
   u32 csr[4096];
@@ -39,6 +41,7 @@ private:
   Config config;
   std::string current_dis;
   u32 last_addr_used = 0x0;
+  bool halted = false;
 
   u32 rs1_value;
   u32 rs2_value;
@@ -46,6 +49,8 @@ private:
   void set_reg(u8 idx, u32 val);
   u32  get_reg(u8 idx) const;
 
+  // mask for allowing and blocking csr writes
+  u32 mask(u16 idx);
   void set_csr(u16 idx, u32 val);
   void set_csr(CSR_ADDR idx, u32 val) { set_csr(static_cast<u16>(idx), val); }
   
@@ -55,6 +60,10 @@ private:
   void store(u32 addr, BITSIZE size, u32 val);
   u32  load(u32 addr, BITSIZE size);
 
+  void invalid_op(const Instruction& instr);
+  void halt_if_deadlock(const Instruction& instr);
+  bool valid_target(u32 target, const Instruction& instr);
+  void jump(u32 target, const Instruction& instr);
   void execute(const Instruction& instr);
 
   u32 alu_add(u32 a, u32 b);
@@ -68,7 +77,7 @@ private:
   u32 alu_or(u32 a, u32 b);
   u32 alu_and(u32 a, u32 b);
 
-  void enter_trap(u32 trap_addr, u32 cause, u32 tval);
+  void enter_trap(u32 trap_addr, TRAP_CODE code, u32 tval);
   void mret();
 };
 

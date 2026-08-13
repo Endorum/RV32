@@ -19,11 +19,26 @@ void Machine::start() {
   cpu.reset();
 }
 
+
 void Machine::step() {
   cpu.step();
 
   if(config.debug) debug();
   if(config.log) log();
+
+  
+}
+
+bool Machine::halted() {
+  
+  if(cpu.get_halted()){
+    std::cout << "\n\nHALTED after " << cpu.get_cycle() << " cycles\n";
+    std::cout << "CPU STATE:" << std::endl;
+    std::cout << cpu.state_str() << std::endl; 
+    return true;
+  }
+
+  return false;
 }
 
 void Machine::log() {

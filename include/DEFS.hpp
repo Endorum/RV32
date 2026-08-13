@@ -13,6 +13,13 @@
 #define i32 int32_t
 #define i64 int64_t
 
+enum class TRAP_CODE{
+  MISALIGNED = 0,
+  INVALID_OP = 2, // internal error more broad?
+  EBREAK = 3,
+  ECALL = 11
+};
+
 enum BITSIZE
 {
   BYTE = 1,

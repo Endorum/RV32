@@ -41,8 +41,12 @@ int main(int argc, char **argv) {
   
   std::cout << "\nSTARTING EXECUTION...\n" << std::endl;
 
-  while(1)
+  while(!machine.halted()){
     machine.step();
+  }
+    
+  // after the cpu has halted
+  
 
   
 

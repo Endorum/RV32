@@ -10,7 +10,8 @@ BaseType get_type(u8 opcode){
 Format get_format(BaseType type){
   switch(type){
     default:
-      Error<std::runtime_error>(std::format("Unknown opcode: {:02X}", (u8)type));
+      return Format::NONE; // to generate a Op::invalid to handle as trap instead of exc
+      //Error<std::runtime_error>(std::format("Unknown opcode: {:02X}", (u8)type));
     
     case BaseType::ALU_R: 
       return Format::R;
@@ -142,10 +143,15 @@ Op get_op(const Instruction& instr){
       }
       return SYSTEM_OP[instr.funct3];
     }
+
+  
       
       
       
   }
+
+
+  return Op::INVALID;
 
 }
 
@@ -210,6 +216,12 @@ std::string get_mnemonic(const Op& op){
   }
 }
 
+void validate(Instruction& instr){
+  if(instr.op <= Op::NONE || instr.op >= Op::INVALID){
+    instr.op = Op::INVALID;
+  }
+}
+
 Instruction decode(u32 word, u32 addr) {
   Instruction instr;
   
@@ -234,6 +246,8 @@ Instruction decode(u32 word, u32 addr) {
   instr.op = get_op(instr);
 
   instr.mnemonic = get_mnemonic(instr.op);
+
+  validate(instr);
 
   return instr;
 }

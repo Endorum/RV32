@@ -46,11 +46,15 @@ public:
   void start();
   void step();
 
+  bool halted();
+
   // minimal debug, show single disass line
   void log();
   void debug();
 
 private:
+
+  
 
   Config config;
   

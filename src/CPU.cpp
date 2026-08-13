@@ -20,9 +20,21 @@ void CPU::reset(){
     csr[i] = 0x000000000;
   }
 
+  cycle = 0;
+
+
   // start at reset vector (start of ROM / firmware as of right now)
   pc = config.reset_vector;
-  cycle = 0;
+
+  // Loading the extension and arch infos
+  // (1 << 30) = (32 Bit) ? 1 : 0;
+  // (1 << 8) = (I Ext.) ? 1 : 0;
+  csr[(u16)CSR_ADDR::misa] = (1u << 30) | (1u << 8);
+
+  // MPP liest ab reset immer 3 (= M-Mode)
+  // ACHTUNG: für U Mode muss das wieder geändert werden!
+  csr[(u16)CSR_ADDR::mstatus] = MSTATUS_MPP;
+  
 }
 
 void CPU::step(){
@@ -47,14 +59,8 @@ void CPU::step(){
   pc += 4;
 
   execute(instr);
-
-
-  // 0x6F = JAL +0 = infinite loop
-  if(word == 0x0000006F) {
-    std::cout << state_str() << std::endl; 
-    exit(0);
-  }
   
+  halt_if_deadlock(instr);
   cycle++;
 }
 
@@ -120,8 +126,25 @@ u32 CPU::get_reg(u8 idx) const {
   return regfile[idx];
 }
 
+u32 CPU::mask(u16 idx) {
+  CSR_ADDR addr = static_cast<CSR_ADDR>(idx);
+
+  switch(addr){
+    default: return 0xFFFFFFFF;
+    
+    // read only csr's
+    case CSR_ADDR::misa:    return 0x00000000;
+    case CSR_ADDR::tselect: return 0x00000000;
+
+    case CSR_ADDR::mstatus: return MSTATUS_MIE | MSTATUS_MPIE; // 0x88
+
+
+  }
+}
+
 void CPU::set_csr(u16 idx, u32 val) {
-  csr[idx] = val;
+  const u32 m = mask(idx);
+  csr[idx] = (val & m) | (csr[idx] & ~m);
 }
 
 u32 CPU::get_csr(u16 idx) const {
@@ -140,9 +163,39 @@ u32 CPU::load(u32 addr, BITSIZE size) {
   return bus->load(addr, size);
 }
 
+
+void CPU::invalid_op(const Instruction& instr){
+  // handle invalid op via a trap instead of a C++ error
+  enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+}
+
+void CPU::halt_if_deadlock(const Instruction& instr) {
+  
+  // if word == 6F == j +0 == inf. loop AND interrupts are ->disabled<- then halt
+  if(instr.word == 0x6F && !(get_csr(CSR_ADDR::mstatus) & MSTATUS_MIE)) {
+    halted = true;
+  }
+
+}
+
+bool CPU::valid_target(u32 target, const Instruction& instr) {
+  
+  // check for alignment
+  if(target & 0x2){
+    enter_trap(instr.addr, TRAP_CODE::MISALIGNED, target);
+    return false;
+  }
+
+  return true;
+}
+
+
 void CPU::execute(const Instruction& instr){
 
-  if(instr.op == Op::INVALID) Error<std::runtime_error>("Op was of type INVALID");
+  if(instr.op == Op::INVALID){
+    invalid_op(instr);
+    return;
+  }
   
   if(instr.type == BaseType::ALU_R || instr.type == BaseType::ALU_I){
     u32 result = 0;
@@ -150,7 +203,7 @@ void CPU::execute(const Instruction& instr){
     u32 B = (instr.type == BaseType::ALU_I) ? (u32)instr.imm : rs2_value;
 
     switch(instr.op){
-      default: Error<std::runtime_error>("Invalid op type (should not happen)");
+      default: Error<std::runtime_error>(std::format("Invalid op type (should not happen) ALU {}", (u32)instr.op));
 
       case Op::ADD: 
       case Op::ADDI:  result = alu_add(A, B); break;
@@ -192,7 +245,7 @@ void CPU::execute(const Instruction& instr){
     u32 addr  = rs1_value + (u32)instr.imm;
 
     switch(instr.op){
-      default: Error<std::runtime_error>("Invalid op type (should not happen)");
+      default: Error<std::runtime_error>("Invalid op type (should not happen) LOAD");
 
       case Op::LB: value = sign_extend(load(addr, BYTE), 8); break;
       case Op::LH: value = sign_extend(load(addr, HALF), 16); break;
@@ -210,7 +263,7 @@ void CPU::execute(const Instruction& instr){
     u32 addr = rs1_value + instr.imm;
 
     switch(instr.op){
-      default: Error<std::runtime_error>("Invalid op type (should not happen)");
+      default: Error<std::runtime_error>("Invalid op type (should not happen) STORE");
 
       case Op::SB: store(addr, BYTE, rs2_value); break;
       case Op::SH: store(addr, HALF, rs2_value); break;
@@ -238,22 +291,37 @@ void CPU::execute(const Instruction& instr){
 
     }
 
-    if(branch)
-      pc = instr.addr + instr.imm;
+    if(branch){
+      
+      u32 target = instr.addr + instr.imm;
+
+      if(valid_target(target, instr)){
+        pc = target;
+      }
+
+    }
 
   }
 
-
   else if(instr.op == Op::JAL){
-    set_reg(instr.rd, instr.addr + 4);
 
-    pc = instr.addr + instr.imm;
+    u32 target = instr.addr + instr.imm;
+
+    if(valid_target(target, instr)){
+      pc = target;
+      set_reg(instr.rd, instr.addr + 4);
+    }
+
   }
   
   else if(instr.op == Op::JALR){
-    set_reg(instr.rd, instr.addr + 4);
+    u32 target = ((i32)rs1_value + instr.imm) & ~1;
 
-    pc = (((i32)rs1_value + instr.imm) & ~1);
+    if(valid_target(target, instr)){
+      pc = target;
+      set_reg(instr.rd, instr.addr + 4);
+    }
+
   }
   
   else if(instr.op == Op::LUI){
@@ -272,15 +340,16 @@ void CPU::execute(const Instruction& instr){
     
 
     if(instr.op == Op::ECALL){
-      enter_trap(instr.addr, 11, 0);
+      enter_trap(instr.addr, TRAP_CODE::ECALL, 0);
     }
     
     else if(instr.op == Op::EBREAK){
-      enter_trap(instr.addr, 3, instr.addr);
+      enter_trap(instr.addr, TRAP_CODE::EBREAK, instr.addr);
     }
 
     else if(instr.op == Op::WFI){
       // wfi = wait for interrup = do nothing for now
+      return;
     }
 
     else if(instr.op == Op::MRET){
@@ -326,6 +395,9 @@ void CPU::execute(const Instruction& instr){
 
       }
       set_reg(instr.rd, old_csr);
+    }
+    else{
+      Error<std::runtime_error>("Invalid SYSTEM op type (should not happen)");
     }
   }
 
@@ -382,9 +454,9 @@ u32 CPU::alu_and(u32 a, u32 b){
   return a & b;
 }
 
-void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
+void CPU::enter_trap(u32 trap_addr, TRAP_CODE cause, u32 tval) {
   set_csr(CSR_ADDR::mepc, trap_addr);  // mepc <- addr of the ecall
-  set_csr(CSR_ADDR::mcause, cause);   // 3: ebreak, 11: ecall Machine mode, 8: ecall User mode
+  set_csr(CSR_ADDR::mcause, (u32)cause);   // 3: ebreak, 11: ecall Machine mode, 8: ecall User mode
   set_csr(CSR_ADDR::mtval, tval);
 
   u32 mstatus = get_csr(CSR_ADDR::mstatus);
