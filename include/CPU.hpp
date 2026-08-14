@@ -39,9 +39,16 @@ private:
   BUS* bus = nullptr;
 
   Config config;
+
   std::string current_dis;
+  
   u32 last_addr_used = 0x0;
+  
   bool halted = false;
+
+  // needed for atomic instrs. (A Ext.)
+  u32 reservation_addr = 0;
+  bool reservation_valid = false;
 
   u32 rs1_value;
   u32 rs2_value;
@@ -63,19 +70,17 @@ private:
   void invalid_op(const Instruction& instr);
   void halt_if_deadlock(const Instruction& instr);
   bool valid_target(u32 target, const Instruction& instr);
-  void jump(u32 target, const Instruction& instr);
   void execute(const Instruction& instr);
 
-  u32 alu_add(u32 a, u32 b);
-  u32 alu_sub(u32 a, u32 b);
   u32 alu_sll(u32 a, u32 b);
   u32 alu_slt(u32 a, u32 b);
-  u32 alu_sltu(u32 a, u32 b);
-  u32 alu_xor(u32 a, u32 b);
   u32 alu_srl(u32 a, u32 b);
   u32 alu_sra(u32 a, u32 b);
-  u32 alu_or(u32 a, u32 b);
-  u32 alu_and(u32 a, u32 b);
+
+  u32 alu_div(i32 a, i32 b);
+  u32 alu_divu(u32 a, u32 b);
+  u32 alu_rem(i32 a, i32 b);
+  u32 alu_remu(u32 a, u32 b);
 
   void enter_trap(u32 trap_addr, TRAP_CODE code, u32 tval);
   void mret();

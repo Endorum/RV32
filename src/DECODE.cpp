@@ -14,6 +14,7 @@ Format get_format(BaseType type){
       //Error<std::runtime_error>(std::format("Unknown opcode: {:02X}", (u8)type));
     
     case BaseType::ALU_R: 
+    case BaseType::ATOMIC:
       return Format::R;
     
     case BaseType::ALU_I:
@@ -82,21 +83,38 @@ i32 get_immediate(Format fmt, u32 word){
 Op get_op(const Instruction& instr){
 
   // gets indexed using funct3
-  static constexpr Op ALU_R_OP[]   = {Op::ADD, Op::SLL, Op::SLT, Op::SLTU, Op::XOR, Op::SRL, Op::OR, Op::AND};
-  static constexpr Op ALU_I_OP[]   = {Op::ADDI, Op::SLLI, Op::SLTI, Op::SLTIU, Op::XORI, Op::SRLI, Op::ORI, Op::ANDI};
-  static constexpr Op LOAD_OP[]    = {Op::LB, Op::LH, Op::LW, Op::INVALID, Op::LBU, Op::LHU, Op::INVALID, Op::INVALID};
-  static constexpr Op STORE_OP[]   = {Op::SB, Op::SH, Op::SW, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID};
-  static constexpr Op BRANCH_OP[]  = {Op::BEQ, Op::BNE, Op::INVALID, Op::INVALID, Op::BLT, Op::BGE, Op::BLTU, Op::BGEU};
-  static constexpr Op SYSTEM_OP[]  = {Op::INVALID, Op::CSRRW, Op::CSRRS, Op::CSRRC, Op::INVALID, Op::CSRRWI, Op::CSRRSI, Op::CSRRCI};
+  static constexpr Op ALU_R_OP[]          = {Op::ADD, Op::SLL, Op::SLT, Op::SLTU, Op::XOR, Op::SRL, Op::OR, Op::AND}; // f7 = 0x0 or f7 = 0x20
+  static constexpr Op ALU_R_OP_M_EXT[]    = {Op::MUL, Op::MULH, Op::MULHSU, Op::MULHU, Op::DIV, Op::DIVU, Op::REM, Op::REMU}; // f7 = 0x1
+  static constexpr Op ALU_I_OP[]          = {Op::ADDI, Op::SLLI, Op::SLTI, Op::SLTIU, Op::XORI, Op::SRLI, Op::ORI, Op::ANDI};
+  static constexpr Op LOAD_OP[]           = {Op::LB, Op::LH, Op::LW, Op::INVALID, Op::LBU, Op::LHU, Op::INVALID, Op::INVALID};
+  static constexpr Op STORE_OP[]          = {Op::SB, Op::SH, Op::SW, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID, Op::INVALID};
+  static constexpr Op BRANCH_OP[]         = {Op::BEQ, Op::BNE, Op::INVALID, Op::INVALID, Op::BLT, Op::BGE, Op::BLTU, Op::BGEU};
+  static constexpr Op SYSTEM_OP[]         = {Op::INVALID, Op::CSRRW, Op::CSRRS, Op::CSRRC, Op::INVALID, Op::CSRRWI, Op::CSRRSI, Op::CSRRCI};
 
   switch(instr.type){
     default: return Op::INVALID;
 
     case BaseType::ALU_R:{
-      Op op = ALU_R_OP[instr.funct3];
-      if(op == Op::ADD && instr.funct7 == 0x20) return Op::SUB;
-      if(op == Op::SRL && instr.funct7 == 0x20) return Op::SRA;
-      return op;
+      
+      
+      if(instr.funct7 == 0x0){
+        // I Ext Base
+        return ALU_R_OP[instr.funct3];
+        
+      }else if(instr.funct7 == 0x20){
+        // I Ext Alt.
+        Op op = ALU_R_OP[instr.funct3];
+        if(op == Op::ADD && instr.funct7 == 0x20) return Op::SUB;
+        if(op == Op::SRL && instr.funct7 == 0x20) return Op::SRA;
+        return Op::INVALID;
+
+      }else if(instr.funct7 == 0x01){
+        // M Ext 
+        return ALU_R_OP_M_EXT[instr.funct3];
+
+      }
+
+      else return Op::INVALID;
     }
 
     case BaseType::ALU_I:{
@@ -142,6 +160,29 @@ Op get_op(const Instruction& instr){
         }
       }
       return SYSTEM_OP[instr.funct3];
+    }
+
+    case BaseType::ATOMIC:{
+      
+      if(instr.funct3 != 0b010) return Op::INVALID;
+
+      switch(instr.funct7 >> 2){
+        default: return Op::INVALID;
+        case 0b00000: return Op::AMOADD;
+        case 0b00001: return Op::AMOSWAP;
+        case 0b00010: 
+          if(instr.rs2 == 0x0) return Op::LR; 
+          else return Op::INVALID;
+        case 0b00011: return Op::SC;
+        case 0b00100: return Op::AMOXOR;
+        case 0b01000: return Op::AMOOR;
+        case 0b01100: return Op::AMOAND;
+        case 0b10000: return Op::AMOMIN;
+        case 0b10100: return Op::AMOMAX;
+        case 0b11000: return Op::AMOMINU;
+        case 0b11100: return Op::AMOMAXU;
+      }
+
     }
 
   
@@ -209,6 +250,30 @@ std::string get_mnemonic(const Op& op){
     case Op::CSRRSI: return "csrrsi";
     case Op::CSRRCI: return "csrrci";
 
+    /* RV32M Standard Extension */
+    case Op::MUL: return "mul";
+    case Op::MULH: return "mulh";
+    case Op::MULHSU: return "mulhsu";
+    case Op::MULHU: return "mulhu";
+    case Op::DIV: return "div";
+    case Op::DIVU: return "divu";
+    case Op::REM: return "rem";
+    case Op::REMU: return "remu";
+
+    /* RV32A Standard Extension */
+    case Op::LR: return "lr";
+    case Op::SC: return "sc";
+    case Op::AMOSWAP: return "amoswap";
+    case Op::AMOADD: return "amoadd";
+    case Op::AMOXOR: return "amoxor";
+    case Op::AMOAND: return "amoand";
+    case Op::AMOOR: return "amoor";
+    case Op::AMOMIN: return "amomin";
+    case Op::AMOMAX: return "amomax";
+    case Op::AMOMINU: return "amominu";
+    case Op::AMOMAXU: return "amomaxu";
+
+    /* Other */
     case Op::WFI: return "wfi";
     case Op::MRET: return "mret";
 
@@ -236,6 +301,10 @@ Instruction decode(u32 word, u32 addr) {
 
   instr.funct3 = extract_bits(instr.word, 12, 14);
   instr.funct7 = extract_bits(instr.word, 25, 31);
+
+  // for A extension
+  instr.aq = extract_bits(instr.word, 26, 26);
+  instr.rl = extract_bits(instr.word, 25, 25);
 
   instr.type = get_type(instr.opcode);
   
@@ -277,6 +346,7 @@ std::string format_operands(const Instruction& instr){
 }
 
 std::string disassemble(const Instruction& instr){
-  return std::format("{:08X}: {:08X}    {:<8}{}", instr.addr, instr.word, instr.mnemonic, format_operands(instr));
+  std::string mnemonic = get_mnemonic(instr.op);
+  return std::format("{:08X}: {:08X}    {:<8}{}", instr.addr, instr.word, mnemonic, format_operands(instr));
 
 }

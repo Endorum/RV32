@@ -61,9 +61,32 @@ enum class Op
   CSRRSI,
   CSRRCI,
 
+  /* RV32M Standard Extension */
+  MUL,
+  MULH,
+  MULHSU,
+  MULHU,
+  DIV,
+  DIVU,
+  REM,
+  REMU,
+
+  /* RV32A Standard Extension */
+  LR,
+  SC,
+  AMOSWAP,
+  AMOADD,
+  AMOXOR,
+  AMOAND,
+  AMOOR,
+  AMOMIN,
+  AMOMAX,
+  AMOMINU,
+  AMOMAXU,
+
+  /* Other */
   WFI,
   MRET,
-
 
   INVALID,
 
@@ -93,6 +116,7 @@ enum class BaseType : u8 {
   AUIPC   = 0b0010111,
   FENCE   = 0b0001111,
   SYSTEM  = 0b1110011,
+  ATOMIC  = 0b0101111, 
 };
 
 typedef struct Instruction{
@@ -112,6 +136,9 @@ typedef struct Instruction{
   u8 funct7;
 
   i32 imm;
+
+  bool aq;
+  bool rl;
 
   Format fmt;
   BaseType type;

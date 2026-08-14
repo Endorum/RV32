@@ -544,9 +544,123 @@ static void test_reset_csr_values() {
       0x301023F3, // csrr  t2, misa
       0x20702223, // sw    t2, 0x204(x0)      RESULT1 = misa after write
     }, 8);
-    CHECK_EQ(bus.load(RESULT0, WORD), 0x40000100); // MXL=1 (RV32) | I
-    CHECK_EQ(bus.load(RESULT1, WORD), 0x40000100); // unchanged: read-only
+    // update deliberately when the machine grows an extension!
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x40001101); // MXL=1 (RV32) | I | M | A
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x40001101); // unchanged: read-only
     CHECK_EQ(bus.load(RESULT2, WORD), 0x00001800); // MPP=3, rest clear
+  });
+}
+
+static void test_misaligned_fetch_trap() {
+  // jalr to a target with bit 1 set: the JUMP traps (cause 0), mepc points
+  // at the jalr, mtval holds the bad target — and rd must NOT be written
+  guarded("misaligned fetch", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40     handler address
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x07700313, // 0x08: addi t1, x0, 0x77     sentinel in the link register
+      0x02000393, // 0x0C: addi t2, x0, 0x20
+      0x00238367, // 0x10: jalr t1, t2, 2        -> 0x22: misaligned, must trap
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013,
+      0x34202E73, // 0x40: csrr t3, mcause
+      0x21C02023, // 0x44: sw   t3, 0x200(x0)    RESULT0 = mcause
+      0x34102E73, // 0x48: csrr t3, mepc
+      0x21C02223, // 0x4C: sw   t3, 0x204(x0)    RESULT1 = mepc
+      0x34302E73, // 0x50: csrr t3, mtval
+      0x21C02423, // 0x54: sw   t3, 0x208(x0)    RESULT2 = mtval
+      0x20602623, // 0x58: sw   t1, 0x20C(x0)    link reg: sentinel must survive
+    }, 12);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0);    // cause 0 = misaligned fetch
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x10); // mepc = the jalr itself
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x22); // mtval = the bad target
+    CHECK_EQ(bus.load(0x20C, WORD), 0x77);   // trapping instr wrote NO rd
+  });
+}
+
+static void test_not_taken_branch_no_trap() {
+  // the target of a branch that is NOT taken is never checked
+  guarded("not-taken branch", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x00100293, // addi t0, x0, 1
+      0x00028D63, // beq  t0? no: beq t0,x0,+26 -> misaligned target, NOT taken
+      0x02A00313, // addi t1, x0, 42
+      0x20602023, // sw   t1, 0x200(x0)
+    }, 4);
+    CHECK_EQ(bus.load(RESULT0, WORD), 42); // fell through, no trap
+  });
+}
+
+// ------------------------------------------------------------ atomics
+//
+// atomic target address is 0x300 (clear of the RESULT slots)
+
+static void test_lr_sc_pair_and_consumption() {
+  guarded("lr/sc", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30000293, // addi t0, x0, 0x300
+      0x05500313, // addi t1, x0, 0x55
+      0x0062A023, // sw   t1, 0(t0)         mem[0x300] = 0x55
+      0x1002A32F, // lr.w t1, (t0)          t1 = 0x55, reservation on 0x300
+      0x07700E13, // addi t3, x0, 0x77
+      0x19C2A3AF, // sc.w t2, t3, (t0)      success: mem = 0x77, t2 = 0
+      0x20702023, // sw   t2, 0x200(x0)     RESULT0 = 0 (sc succeeded)
+      0x0002AE83, // lw   t4, 0(t0)
+      0x21D02223, // sw   t4, 0x204(x0)     RESULT1 = 0x77 (store happened)
+      0x19C2A3AF, // sc.w t2, t3, (t0)      reservation consumed -> must fail
+      0x20702423, // sw   t2, 0x208(x0)     RESULT2 = nonzero
+    }, 11);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x77);
+    CHECK(bus.load(RESULT2, WORD) != 0); // second sc without reservation fails
+  });
+}
+
+static void test_sc_wrong_address_fails() {
+  guarded("sc wrong addr", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30000293, // addi t0, x0, 0x300
+      0x30400313, // addi t1, x0, 0x304     a DIFFERENT address
+      0x1002A3AF, // lr.w t2, (t0)          reservation on 0x300
+      0x04200E13, // addi t3, x0, 0x42
+      0x19C323AF, // sc.w t2, t3, (t1)      sc on 0x304 -> must fail
+      0x20702023, // sw   t2, 0x200(x0)     RESULT0 = nonzero
+      0x00032E83, // lw   t4, 0(t1)
+      0x21D02223, // sw   t4, 0x204(x0)     RESULT1 = 0 (nothing was stored)
+    }, 8);
+    CHECK(bus.load(RESULT0, WORD) != 0); // sc paired with wrong address
+    CHECK_EQ(bus.load(RESULT1, WORD), 0);
+  });
+}
+
+static void test_amoswap_touches_only_rd_and_mem() {
+  // rd <- old mem, mem <- rs2 — and the rs2 REGISTER stays untouched
+  guarded("amoswap", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30000293, // addi t0, x0, 0x300
+      0x0AA00313, // addi t1, x0, 0xAA
+      0x0062A023, // sw   t1, 0(t0)         mem[0x300] = 0xAA
+      0x0BB00313, // addi t1, x0, 0xBB      t1 (rs2) = 0xBB
+      0x0862A3AF, // amoswap.w t2, t1, (t0) t2 = 0xAA, mem = 0xBB
+      0x20702023, // sw   t2, 0x200(x0)     RESULT0 = 0xAA (old value into rd)
+      0x20602223, // sw   t1, 0x204(x0)     RESULT1 = 0xBB (rs2 reg untouched!)
+      0x0002AE83, // lw   t4, 0(t0)
+      0x21D02423, // sw   t4, 0x208(x0)     RESULT2 = 0xBB (rs2 into memory)
+    }, 9);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0xAA);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0xBB);
+    CHECK_EQ(bus.load(RESULT2, WORD), 0xBB);
   });
 }
 
@@ -592,5 +706,10 @@ void run_cpu_tests() {
   test_ebreak_cause_and_tval();
   test_mstatus_push_pop();
   test_reset_csr_values();
+  test_misaligned_fetch_trap();
+  test_not_taken_branch_no_trap();
+  test_lr_sc_pair_and_consumption();
+  test_sc_wrong_address_fails();
+  test_amoswap_touches_only_rd_and_mem();
   test_wfi_is_nop();
 }

@@ -20,6 +20,23 @@ enum class TRAP_CODE{
   ECALL = 11
 };
 
+enum MISA_CODE : u32{
+  MISA_EXT_A    = (1UL << 0),   // Atomics
+  MISA_EXT_B    = (1UL << 1),   // Bit Manipulation
+  MISA_EXT_C    = (1UL << 2),   // Compressed
+  MISA_EXT_D    = (1UL << 3),   // Double FP
+  MISA_EXT_E    = (1UL << 4),   // Embedded Base ISA
+  MISA_EXT_F    = (1UL << 5),   // Single FP
+  MISA_EXT_H    = (1UL << 7),   // Hypervisor
+  MISA_EXT_I    = (1UL << 8),   // Integer Base ISA
+  MISA_EXT_M    = (1UL << 12),  // Multiply / Divide
+  MISA_EXT_S    = (1UL << 18),  // Supervisor Mode
+  MISA_EXT_U    = (1UL << 20),  // User Mode
+  MISA_EXT_V    = (1UL << 21),  // Vector
+  MISA_EXT_X    = (1UL << 23),  // Non-standard Extensions
+
+  MISA_XLEN_32  = (1UL << 30)
+};
 enum BITSIZE
 {
   BYTE = 1,

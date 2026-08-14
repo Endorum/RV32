@@ -29,11 +29,17 @@ void CPU::reset(){
   // Loading the extension and arch infos
   // (1 << 30) = (32 Bit) ? 1 : 0;
   // (1 << 8) = (I Ext.) ? 1 : 0;
-  csr[(u16)CSR_ADDR::misa] = (1u << 30) | (1u << 8);
+  csr[(u16)CSR_ADDR::misa] = 
+    MISA_XLEN_32 | 
+    MISA_EXT_I | 
+    MISA_EXT_M |
+    MISA_EXT_A;
 
   // MPP liest ab reset immer 3 (= M-Mode)
   // ACHTUNG: für U Mode muss das wieder geändert werden!
   csr[(u16)CSR_ADDR::mstatus] = MSTATUS_MPP;
+
+  reservation_valid = false;
   
 }
 
@@ -206,18 +212,18 @@ void CPU::execute(const Instruction& instr){
       default: Error<std::runtime_error>(std::format("Invalid op type (should not happen) ALU {}", (u32)instr.op));
 
       case Op::ADD: 
-      case Op::ADDI:  result = alu_add(A, B); break;
+      case Op::ADDI:  result = A + B; break;
 
-      case Op::SUB:   result = alu_sub(A, B); break;
+      case Op::SUB:   result = A - B; break;
       
       case Op::XOR: 
-      case Op::XORI:  result = alu_xor(A, B); break;
+      case Op::XORI:  result = A ^ B; break;
       
       case Op::OR: 
-      case Op::ORI:   result = alu_or(A, B); break;
+      case Op::ORI:   result = A | B; break;
       
       case Op::AND: 
-      case Op::ANDI:  result = alu_and(A, B); break;
+      case Op::ANDI:  result = A & B; break;
       
       case Op::SLL: 
       case Op::SLLI:  result = alu_sll(A, B); break;
@@ -232,7 +238,18 @@ void CPU::execute(const Instruction& instr){
       case Op::SLTI:  result = alu_slt(A, B); break;
       
       case Op::SLTU: 
-      case Op::SLTIU: result = alu_sltu(A, B); break;
+      case Op::SLTIU: result = (A < B) ? 1 : 0; break;
+
+      case Op::MUL:     result = A * B; break;
+      case Op::MULH:    result = (u32)(((i64)(i32)A * (i64)(i32)B) >> 32); break;
+      case Op::MULHSU:  result = (u32)(((i64)(i32)A * (u64)B)      >> 32); break;
+      case Op::MULHU:   result = (u32)(((u64)A      * (u64)B)      >> 32); break;
+
+      case Op::DIV:     result = alu_div(A, B); break;
+      case Op::DIVU:    result = alu_divu(A, B); break;
+
+      case Op::REM:     result = alu_rem(A, B); break;
+      case Op::REMU:    result = alu_remu(A, B); break;
 
     }
 
@@ -401,6 +418,85 @@ void CPU::execute(const Instruction& instr){
     }
   }
 
+  else if(instr.type == BaseType::ATOMIC){
+    
+    if(instr.op == Op::LR){
+      u32 word = load(rs1_value, WORD); 
+      set_reg(instr.rd, word);
+
+      reservation_addr = rs1_value;
+      reservation_valid = true;
+      return;
+    }
+    
+    else if(instr.op == Op::SC){
+      
+      if(reservation_valid && reservation_addr == rs1_value) {
+        store(rs1_value, WORD, rs2_value);
+        set_reg(instr.rd, 0);
+        reservation_valid = false;
+      }else{
+        set_reg(instr.rd, 1);
+        reservation_valid = false;
+      }
+      
+      return;
+
+    }else{
+      u32 value = load(rs1_value, WORD);
+      u32 ret_val = 0;
+
+      if(instr.op >= Op::AMOSWAP && instr.op <= Op::AMOMAXU) set_reg(instr.rd, value);
+
+      switch(instr.op){
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+        
+        case Op::AMOSWAP:
+          ret_val = rs2_value;
+          break;
+        
+        case Op::AMOADD:
+          ret_val = value + rs2_value;
+          break;
+        
+        case Op::AMOAND:
+          ret_val = value & rs2_value;
+          break;
+
+        case Op::AMOOR:
+          ret_val = value | rs2_value;
+          break;
+
+        case Op::AMOXOR:
+          ret_val = value ^ rs2_value;
+          break;
+
+        case Op::AMOMIN:
+          ret_val = ((i32)value < (i32)rs2_value) ? value : rs2_value; 
+          break;
+        
+        case Op::AMOMINU:
+          ret_val = (value < rs2_value) ? value : rs2_value;
+          break;
+
+        case Op::AMOMAX:
+          ret_val = ((i32)value > (i32)rs2_value) ? value : rs2_value;
+          break;
+        
+        case Op::AMOMAXU:
+          ret_val = (value > rs2_value) ? value : rs2_value;
+          break;
+          
+          
+      }
+
+      store(rs1_value, WORD, ret_val);
+
+    }
+    
+
+  }
+
 
   else{
     Error<std::runtime_error>("Unhandled execute?");
@@ -408,13 +504,6 @@ void CPU::execute(const Instruction& instr){
 
 }
 
-u32 CPU::alu_add(u32 a, u32 b){
-  return a + b;
-}
-
-u32 CPU::alu_sub(u32 a, u32 b){
-  return a - b;
-}
 
 u32 CPU::alu_sll(u32 a, u32 b){
   u32 shift_amnt = b & 0x1F;
@@ -425,14 +514,6 @@ u32 CPU::alu_slt(u32 a, u32 b){
   i32 s_a = static_cast<i32>(a);
   i32 s_b = static_cast<i32>(b);
   return (s_a < s_b) ? 1 : 0;
-}
-
-u32 CPU::alu_sltu(u32 a, u32 b){
-  return (a < b) ? 1 : 0;
-}
-
-u32 CPU::alu_xor(u32 a, u32 b){
-  return a ^ b;
 }
 
 u32 CPU::alu_srl(u32 a, u32 b){
@@ -446,17 +527,40 @@ u32 CPU::alu_sra(u32 a, u32 b){
   return s_a >> shift_amnt;
 }
 
-u32 CPU::alu_or(u32 a, u32 b){
-  return a | b;
+u32 CPU::alu_div(i32 a, i32 b) {
+  if(b == 0x0){
+    return -1;
+  }
+
+  return a / b;
 }
 
-u32 CPU::alu_and(u32 a, u32 b){
-  return a & b;
+u32 CPU::alu_divu(u32 a, u32 b) {
+  if(b == 0x0){
+    return 0xFFFFFFFF;
+  }
+  return a / b;
+}
+
+u32 CPU::alu_rem(i32 a, i32 b) {
+  if(b == 0x0){
+    return a;
+  }
+
+  return a % b;
+}
+
+u32 CPU::alu_remu(u32 a, u32 b) {
+  if(b == 0x0){
+    return a;
+  }
+
+  return a % b;
 }
 
 void CPU::enter_trap(u32 trap_addr, TRAP_CODE cause, u32 tval) {
-  set_csr(CSR_ADDR::mepc, trap_addr);  // mepc <- addr of the ecall
-  set_csr(CSR_ADDR::mcause, (u32)cause);   // 3: ebreak, 11: ecall Machine mode, 8: ecall User mode
+  set_csr(CSR_ADDR::mepc, trap_addr);       // mepc <- addr of the ecall
+  set_csr(CSR_ADDR::mcause, (u32)cause);    // 3: ebreak, 11: ecall Machine mode, 8: ecall User mode
   set_csr(CSR_ADDR::mtval, tval);
 
   u32 mstatus = get_csr(CSR_ADDR::mstatus);
@@ -470,6 +574,9 @@ void CPU::enter_trap(u32 trap_addr, TRAP_CODE cause, u32 tval) {
 
   u32 mtvec = get_csr(CSR_ADDR::mtvec);
   pc = mtvec & ~0x3;
+
+  // why?
+  reservation_valid = false;
 }
 
 void CPU::mret() {
