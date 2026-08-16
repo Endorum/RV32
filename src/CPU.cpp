@@ -15,10 +15,18 @@ void CPU::reset(){
     regfile[i] = 0x000000000;
   }
 
+  // clear fp32 registers
+  for(int i=0;i<32;i++){
+    fregfile[i] = 0x000000000;
+  }
+
   // clear csr
   for(int i=0;i<0x1000;i++){
     csr[i] = 0x000000000;
   }
+
+  // clear fcsr
+  fcsr = 0x0;
 
   cycle = 0;
 
@@ -33,7 +41,9 @@ void CPU::reset(){
     MISA_XLEN_32 | 
     MISA_EXT_I | 
     MISA_EXT_M |
-    MISA_EXT_A;
+    MISA_EXT_A |
+    MISA_EXT_F |
+    MISA_EXT_D;
 
   // MPP liest ab reset immer 3 (= M-Mode)
   // ACHTUNG: für U Mode muss das wieder geändert werden!
@@ -45,12 +55,10 @@ void CPU::reset(){
 
 void CPU::step(){
 
-  // fetch
-  u32 word = load(pc, WORD);
+  // fetch...
+  u32 word = load(pc, BITSIZE::WORD);
 
-  
-
-  // decode
+  // ...decode...
   Instruction instr = decode(word, pc);
 
   if(config.debug || config.log){
@@ -61,9 +69,14 @@ void CPU::step(){
   rs1_value = get_reg(instr.rs1);
   rs2_value = get_reg(instr.rs2);
 
+  // preload fp registers
+  fp_rs1 = get_freg(instr.rs1);
+  fp_rs2 = get_freg(instr.rs2);
+
   // advance one word by default
   pc += 4;
 
+  // ...execute
   execute(instr);
   
   halt_if_deadlock(instr);
@@ -132,6 +145,35 @@ u32 CPU::get_reg(u8 idx) const {
   return regfile[idx];
 }
 
+void CPU::set_freg(u8 idx, u64 val) {
+  fregfile[idx] = val;
+}
+
+u64 CPU::get_freg(u8 idx) {
+  return fregfile[idx];
+}
+
+u64 CPU::get_freg_s(u8 idx) {
+  u64 f = get_freg(idx);
+  return (f >> 32) == 0xFFFFFFFF ? (u32)f : 0x7FC00000;
+}
+
+void CPU::set_fcsr(u32 val) {
+  fcsr = val;
+}
+
+u32 CPU::get_fcsr() {
+  return fcsr;
+}
+
+void CPU::set_rounding_mode(u8 mode) {
+  fcsr = (fcsr & ~0xE0) | (mode << 5);
+}
+
+u8 CPU::get_rounding_mode() {
+  return (fcsr & 0xE0) >> 5;
+}
+
 u32 CPU::mask(u16 idx) {
   CSR_ADDR addr = static_cast<CSR_ADDR>(idx);
 
@@ -157,18 +199,33 @@ u32 CPU::get_csr(u16 idx) const {
   return csr[idx];
 }
 
-void CPU::store(u32 addr, BITSIZE size, u32 val){
+void CPU::store(u32 addr, BITSIZE size, u64 val){
   if(!bus) Error<std::runtime_error>("BUS not assigned");
   last_addr_used = addr;
-  bus->store(addr, size, val);
+
+  if(size == BITSIZE::DOUBLE){
+    bus->store(addr, BITSIZE::WORD, (val & 0x00000000FFFFFFFF));
+    bus->store(addr + 4,     BITSIZE::WORD, (val >> 32));
+  }else
+    bus->store(addr, size, val);
 }
 
-u32 CPU::load(u32 addr, BITSIZE size) {
+u64 CPU::load(u32 addr, BITSIZE size) {
   if(!bus) Error<std::runtime_error>("BUS not assigned");
   last_addr_used = addr;
-  return bus->load(addr, size);
+
+  if(size == BITSIZE::DOUBLE){
+    u64 val = ((u64)bus->load(addr + 4, BITSIZE::WORD) << 32);
+        val |= bus->load(addr, BITSIZE::WORD);
+    return val;
+  }else
+    return bus->load(addr, size);
+  
 }
 
+u64 CPU::nanbox(u32 val) {
+  return 0xFFFFFFFF00000000ULL | (u32)(val);
+}
 
 void CPU::invalid_op(const Instruction& instr){
   // handle invalid op via a trap instead of a C++ error
@@ -264,11 +321,11 @@ void CPU::execute(const Instruction& instr){
     switch(instr.op){
       default: Error<std::runtime_error>("Invalid op type (should not happen) LOAD");
 
-      case Op::LB: value = sign_extend(load(addr, BYTE), 8); break;
-      case Op::LH: value = sign_extend(load(addr, HALF), 16); break;
-      case Op::LW: value = load(addr, WORD); break;
-      case Op::LBU: value = load(addr, BYTE); break;
-      case Op::LHU: value = load(addr, HALF); break;
+      case Op::LB: value = sign_extend(load(addr, BITSIZE::BYTE), 8); break;
+      case Op::LH: value = sign_extend(load(addr, BITSIZE::HALF), 16); break;
+      case Op::LW: value = load(addr, BITSIZE::WORD); break;
+      case Op::LBU: value = load(addr, BITSIZE::BYTE); break;
+      case Op::LHU: value = load(addr, BITSIZE::HALF); break;
 
     }
 
@@ -282,9 +339,9 @@ void CPU::execute(const Instruction& instr){
     switch(instr.op){
       default: Error<std::runtime_error>("Invalid op type (should not happen) STORE");
 
-      case Op::SB: store(addr, BYTE, rs2_value); break;
-      case Op::SH: store(addr, HALF, rs2_value); break;
-      case Op::SW: store(addr, WORD, rs2_value); break;
+      case Op::SB: store(addr, BITSIZE::BYTE, rs2_value); break;
+      case Op::SH: store(addr, BITSIZE::HALF, rs2_value); break;
+      case Op::SW: store(addr, BITSIZE::WORD, rs2_value); break;
 
     } 
   }
@@ -418,10 +475,11 @@ void CPU::execute(const Instruction& instr){
     }
   }
 
+  /* RV32A */
   else if(instr.type == BaseType::ATOMIC){
     
     if(instr.op == Op::LR){
-      u32 word = load(rs1_value, WORD); 
+      u32 word = load(rs1_value, BITSIZE::WORD); 
       set_reg(instr.rd, word);
 
       reservation_addr = rs1_value;
@@ -432,7 +490,7 @@ void CPU::execute(const Instruction& instr){
     else if(instr.op == Op::SC){
       
       if(reservation_valid && reservation_addr == rs1_value) {
-        store(rs1_value, WORD, rs2_value);
+        store(rs1_value, BITSIZE::WORD, rs2_value);
         set_reg(instr.rd, 0);
         reservation_valid = false;
       }else{
@@ -443,7 +501,7 @@ void CPU::execute(const Instruction& instr){
       return;
 
     }else{
-      u32 value = load(rs1_value, WORD);
+      u32 value = load(rs1_value, BITSIZE::WORD);
       u32 ret_val = 0;
 
       if(instr.op >= Op::AMOSWAP && instr.op <= Op::AMOMAXU) set_reg(instr.rd, value);
@@ -490,13 +548,275 @@ void CPU::execute(const Instruction& instr){
           
       }
 
-      store(rs1_value, WORD, ret_val);
+      store(rs1_value, BITSIZE::WORD, ret_val);
 
     }
     
 
   }
 
+  /* RV32F/D/H/Q */
+  else if(instr.type == BaseType::LOAD_FP){
+    u32 addr = rs1_value + (u32)instr.imm;
+    switch(instr.op){
+      case Op::FLW: {
+        u64 val = load(addr, BITSIZE::WORD) | 0xFFFFFFFF00000000;
+        set_freg(instr.rd, val);
+        break;
+      }
+      case Op::FLD: {
+        u64 val = load(addr, BITSIZE::DOUBLE);
+        set_freg(instr.rd, val);
+        break;
+      }
+      default: Error<std::runtime_error>("Not handled width for load fp");
+    }
+  }
+
+  else if(instr.type == BaseType::STORE_FP){
+    u32 addr = rs1_value + instr.imm;
+    switch(instr.op){
+      case Op::FSW:
+        store(addr, BITSIZE::WORD, fp_rs2);
+        break;
+      
+      case Op::FSD:
+        store(addr, BITSIZE::DOUBLE, fp_rs2);
+        break;
+
+      default: Error<std::runtime_error>("Not handled width for store fp");
+
+    }
+  }
+
+  /* RV32F */
+  else if(instr.type == BaseType::FMADD || instr.type == BaseType::FMSUB || instr.type == BaseType::FNMSUB || instr.type == BaseType::FNMADD){
+    
+    
+    if(instr.width == PREC::SINGLE){
+      float f_rs1 = std::bit_cast<float>((u32)(get_freg_s(instr.rs1)));
+      float f_rs2 = std::bit_cast<float>((u32)(get_freg_s(instr.rs2)));
+      float f_rs3 = std::bit_cast<float>((u32)(get_freg_s(instr.rs3)));  
+      float result;
+           if(instr.op == Op::FMADD_S) result = std::fma(f_rs1, f_rs2, f_rs3);
+      else if(instr.op == Op::FMSUB_S) result = std::fma(f_rs1, f_rs2, -f_rs3);
+      else if(instr.op == Op::FNMSUB_S) result = std::fma(-f_rs1, f_rs2, f_rs3);
+      else if(instr.op == Op::FNMADD_S) result = std::fma(-f_rs1, f_rs2, -f_rs3);
+      else Error<std::runtime_error>("Invalid fp operation");
+
+      set_freg(instr.rd, nanbox(std::bit_cast<u32>(result)));
+
+    }
+    else if(instr.width == PREC::DOUBLE){
+      double f_rs1 = std::bit_cast<double>((u64)(fp_rs1));
+      double f_rs2 = std::bit_cast<double>((u64)(fp_rs2));
+      double f_rs3 = std::bit_cast<double>((u64)(get_freg(instr.rs3)));
+
+      double result;
+           if(instr.op == Op::FMADD_D) result = std::fma(f_rs1, f_rs2, f_rs3);
+      else if(instr.op == Op::FMSUB_D) result = std::fma(f_rs1, f_rs2, -f_rs3);
+      else if(instr.op == Op::FNMSUB_D) result = std::fma(-f_rs1, f_rs2, f_rs3);
+      else if(instr.op == Op::FNMADD_D) result = std::fma(-f_rs1, f_rs2, -f_rs3);
+      else Error<std::runtime_error>("Invalid fp operation");
+
+      set_freg(instr.rd, std::bit_cast<u64>(result));
+
+    }
+    else{
+      Error<std::runtime_error>("Not yet implemented");
+    }
+    
+  }
+
+  else if(instr.type == BaseType::FP_ALU && instr.width == PREC::SINGLE){
+
+    if(instr.op == Op::FSGNJ_S || instr.op == Op::FSGNJN_S || instr.op == Op::FSGNJX_S || instr.op == Op::FMV_W_X){
+
+      u32 a = get_freg_s(instr.rs1);
+      u32 b = get_freg_s(instr.rs2);
+
+      // Bit pattern operations
+      switch(instr.op){
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+
+        // injecting b's sign into a in different way
+        case Op::FSGNJ_S: 
+          set_freg(instr.rd, nanbox((a & 0x7FFFFFFF) | (b & 0x80000000)));
+          break;
+        case Op::FSGNJN_S: 
+          set_freg(instr.rd, nanbox((a & 0x7FFFFFFF) | ((~b) & 0x80000000)));
+          break;
+        case Op::FSGNJX_S: 
+          set_freg(instr.rd, nanbox(a ^ (b & 0x80000000)));
+          break;
+
+        // just copy the actual bytes from the int. reg. to an freg.
+        case Op::FMV_W_X: set_freg(instr.rd, nanbox(rs1_value)); break;
+      }
+    }
+
+    else if(
+      instr.op == Op::FEQ_S || instr.op == Op::FLT_S || instr.op == Op::FLE_S ||
+      instr.op == Op::FCLASS_S || 
+      instr.op == Op::FCVT_W_S || instr.op == Op::FCVT_WU_S || instr.op == Op::FMV_X_W
+    ){
+      // result goes into an int. register
+      float f_rs1 = std::bit_cast<float>((u32)(get_freg_s(instr.rs1)));
+      float f_rs2 = std::bit_cast<float>((u32)(get_freg_s(instr.rs2)));
+      u32 result;
+
+      switch(instr.op){
+        case Op::FEQ_S:     result = (f_rs1 == f_rs2) ? 1 : 0; break;
+        case Op::FLT_S:     result = (f_rs1 <  f_rs2) ? 1 : 0; break;
+        case Op::FLE_S:     result = (f_rs1 <= f_rs2) ? 1 : 0; break;
+        case Op::FCLASS_S:  result = alu_classify_s(f_rs1); break;
+
+        // fp -> int
+        case Op::FCVT_W_S:  result = fcvt_w_s(f_rs1); break;
+        case Op::FCVT_WU_S: result = fcvt_wu_s(f_rs1); break;
+
+        // copy freg bytes to int. reg
+        case Op::FMV_X_W:   result = (u32)(get_freg(instr.rs1)); break;
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+      }
+
+      set_reg(instr.rd, result);
+    }
+
+    else if(
+      instr.op == Op::FADD_S    ||
+      instr.op == Op::FSUB_S    ||
+      instr.op == Op::FMUL_S    ||
+      instr.op == Op::FDIV_S    ||
+      instr.op == Op::FSQRT_S   ||
+      instr.op == Op::FMIN_S    ||
+      instr.op == Op::FMAX_S    ||
+      instr.op == Op::FCVT_S_W  ||
+      instr.op == Op::FCVT_S_WU 
+      
+    ){
+
+      // result goes into a fp register
+      float f_rs1 = std::bit_cast<float>((u32)(get_freg_s(instr.rs1)));
+      float f_rs2 = std::bit_cast<float>((u32)(get_freg_s(instr.rs2)));
+      float result;
+      
+      switch(instr.op){
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+        case Op::FADD_S:  result = f_rs1 + f_rs2; break;
+        case Op::FSUB_S:  result = f_rs1 - f_rs2; break;
+        case Op::FMUL_S:  result = f_rs1 * f_rs2; break;
+        case Op::FDIV_S:  result = f_rs1 / f_rs2; break;
+        case Op::FSQRT_S: result = sqrtf(f_rs1); break;
+        case Op::FMIN_S:  result = alu_fmin_s(f_rs1, f_rs2); break;
+        case Op::FMAX_S:  result = alu_fmax_s(f_rs1, f_rs2); break;
+
+        // int -> fp
+        case Op::FCVT_S_W:  result = (float)((i32)rs1_value); break;
+        case Op::FCVT_S_WU: result = (float)(rs1_value); break;
+
+        
+      }
+
+
+      set_freg(instr.rd, nanbox(std::bit_cast<u32>(result)));
+    }else{
+      Error<std::runtime_error>("Invalid FP SINGLE instruction");
+    }
+
+    
+  }
+
+  /* RV32D */
+  else if(instr.type == BaseType::FP_ALU && instr.width == PREC::DOUBLE){
+    
+    if(instr.op == Op::FSGNJ_D || instr.op == Op::FSGNJN_D || instr.op == Op::FSGNJX_D){
+
+      u64 a = fp_rs1;
+      u64 b = fp_rs2;
+
+      // Bit pattern operations
+      switch(instr.op){
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+
+        // injecting b's sign into a in different way
+        case Op::FSGNJ_D: 
+          set_freg(instr.rd, (a & 0x7FFFFFFFFFFFFFFF) | (b & 0x8000000000000000));
+          break;
+        case Op::FSGNJN_D: 
+          set_freg(instr.rd, (a & 0x7FFFFFFFFFFFFFFF) | ((~b) & 0x8000000000000000));
+          break;
+        case Op::FSGNJX_D: 
+          set_freg(instr.rd, a ^ (b & 0x8000000000000000));
+          break;
+
+      }
+    }
+
+    else if(
+      instr.op == Op::FEQ_D || instr.op == Op::FLT_D || instr.op == Op::FLE_D ||
+      instr.op == Op::FCLASS_D || 
+      instr.op == Op::FCVT_W_D || instr.op == Op::FCVT_WU_D){
+
+      double f_rs1 = std::bit_cast<double>(fp_rs1);
+      double f_rs2 = std::bit_cast<double>(fp_rs2);
+      u64 result;
+
+      switch(instr.op){
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+        case Op::FEQ_D:     result = (f_rs1 == f_rs2) ? 1 : 0; break;
+        case Op::FLT_D:     result = (f_rs1 <  f_rs2) ? 1 : 0; break;
+        case Op::FLE_D:     result = (f_rs1 <= f_rs2) ? 1 : 0; break;
+        case Op::FCLASS_D:  result = alu_classify_d(f_rs1); break;
+
+        // fp -> int
+        case Op::FCVT_W_D:    result = fcvt_w_d(f_rs1); break;
+        case Op::FCVT_WU_D:   result = fcvt_wu_d(f_rs1); break;
+      }
+
+      set_reg(instr.rd, result);
+    } 
+
+    else if(
+      instr.op == Op::FADD_D    ||
+      instr.op == Op::FSUB_D    ||
+      instr.op == Op::FMUL_D    ||
+      instr.op == Op::FDIV_D    ||
+      instr.op == Op::FSQRT_D   ||
+      instr.op == Op::FMIN_D    ||
+      instr.op == Op::FMAX_D    ||
+      instr.op == Op::FCVT_D_W  ||
+      instr.op == Op::FCVT_D_WU 
+    ){
+      double f_rs1 = std::bit_cast<double>(fp_rs1);
+      double f_rs2 = std::bit_cast<double>(fp_rs2);
+      double result;
+
+      switch(instr.op){
+        default: Error<std::runtime_error>("Invalid op type (should not happen)");
+        case Op::FADD_D:  result = f_rs1 + f_rs2; break;
+        case Op::FSUB_D:  result = f_rs1 - f_rs2; break;
+        case Op::FMUL_D:  result = f_rs1 * f_rs2; break;
+        case Op::FDIV_D:  result = f_rs1 / f_rs2; break;
+        case Op::FSQRT_D: result = sqrt(f_rs1); break;
+        case Op::FMIN_D:  result = alu_fmin_d(f_rs1, f_rs2); break;
+        case Op::FMAX_D:  result = alu_fmax_d(f_rs1, f_rs2); break;
+
+        // int -> fp
+        case Op::FCVT_D_W:  result = (double)((i32)rs1_value); break;
+        case Op::FCVT_D_WU: result = (double)(rs1_value); break;
+
+      }
+
+      set_freg(instr.rd, std::bit_cast<u64>(result));
+
+    }
+
+  }
+
+  
+
+  
 
   else{
     Error<std::runtime_error>("Unhandled execute?");
@@ -556,6 +876,155 @@ u32 CPU::alu_remu(u32 a, u32 b) {
   }
 
   return a % b;
+}
+
+
+u32 CPU::alu_classify_s(float v) {
+
+  u32 bits = std::bit_cast<u32>(v);
+
+  bool sign = bits >> 31;
+  u8 exp    = (bits >> 23) & 0xFF;
+  u32 mant  = bits & 0x007FFFFF;
+  
+  if(exp == 0xFF){
+    if(mant == 0x0){
+      return sign ? 0x001 : 0x080; // -inf / +inf 
+    }else{
+      return (mant & 0x400000) ? 0x200 : 0x100; // quite NaN / signaling NaN
+    }
+  }
+  if(exp == 0x00){
+    if(mant == 0x0){
+      return sign ? 0x008 : 0x010; // -0.0 / +0.0
+    }else{
+      return sign ? 0x004 : 0x020; // neg. subnormal / pos. subnormal
+    }
+  }
+  return sign ? 0x002 : 0x040; // neg. normal / pos. normal
+  
+}
+
+i32 CPU::fcvt_w_s(float v) {
+
+  float min = -2147483648.0f;
+  float max = 2147483648.0f; // 2^31, first unrepresentable value
+
+  if(std::isnan(v)) return INT_MAX;
+  if(v >= max) return INT_MAX;
+  if(v < min) return INT_MIN;
+
+  i32 out = (i32)(v);
+
+  return out;
+}
+
+u32 CPU::fcvt_wu_s(float v) {
+
+  float min = 0;
+  float max = 4294967296.0f; // 2^32, first
+
+  if(std::isnan(v)) return UINT_MAX;
+  if(v >= max) return UINT_MAX;
+  if(v < min) return 0;
+
+  u32 out = (u32)(v);
+
+  return out;
+}
+
+
+
+float CPU::alu_fmin_s(float a, float b) {
+  if(isnan(a) && !isnan(b)) return b;
+  if(!isnan(a) && isnan(b)) return a;
+  if(isnan(a) && isnan(b)) return NAN;
+  if(a == 0.0f && std::signbit(a) && b == 0.0f && !std::signbit(b)) return -0.0f;
+  
+  return std::fmin(a, b);
+}
+
+float CPU::alu_fmax_s(float a, float b) {
+  if(isnan(a) && !isnan(b)) return b;
+  if(!isnan(a) && isnan(b)) return a;
+  if(isnan(a) && isnan(b)) return NAN;
+  if(a == 0 && std::signbit(a) && b == 0 && !std::signbit(b)) return +0.0f;
+
+  return std::fmax(a, b);
+}
+
+u64 CPU::alu_classify_d(double v){
+
+  u64 bits = std::bit_cast<u64>(v);
+
+  bool sign = bits >> 63;
+  u16  exp  = (bits >> 52) & 0x7FF;
+  u64 mant  = bits & 0x000FFFFFFFFFFFFF;
+
+  if(exp == 0x7FF){
+    if(mant == 0x0){
+      return sign ? 0x001 : 0x080; // -inf / +inf 
+    }else{
+      return (mant & 0x8000000000000) ? 0x200 : 0x100; // quite NaN / signaling NaN
+    }
+  }
+  if(exp == 0x000){
+    if(mant == 0x0){
+      return sign ? 0x008 : 0x010; // -0.0 / +0.0
+    }else{
+      return sign ? 0x004 : 0x020; // neg. subnormal / pos. subnormal
+    }
+  }
+  return sign ? 0x002 : 0x040; // neg. normal / pos. normal
+}
+
+i64 CPU::fcvt_w_d(double v) {
+
+  float min = -2147483648.0f;
+  float max = 2147483648.0f; // 2^31, first unrepresentable value
+
+  if(std::isnan(v)) return INT_MAX;
+  if(v >= max) return INT_MAX;
+  if(v < min) return INT_MIN;
+
+  i64 out = (i64)(v);
+
+  return out;
+}
+
+u64 CPU::fcvt_wu_d(double v) {
+  double min = 0.0f;
+  double max = 4294967296.0f; // 2^32 first unrepresentable value
+
+  if(std::isnan(v)) return UINT_MAX;
+  if(v >= max) return UINT_MAX;
+  if(v < min) return 0;
+
+  u64 out = (u64)(v);
+
+  return out;
+}
+
+double CPU::alu_fmin_d(double a, double b) {
+  if(isnan(a) && !isnan(b)) return b;
+  if(!isnan(a) && isnan(b)) return a;
+  if(isnan(a) && isnan(b)) return std::bit_cast<double>(0x7FF8000000000000); // = canon NaN in Double prec.
+
+  if(a == 0.0f && std::signbit(a) && b == 0.0f && !std::signbit(b)) return -0.0f;
+  if(a == 0.0f && !std::signbit(a) && b == 0.0f && std::signbit(b)) return -0.0f;
+
+  return std::min(a, b);
+}
+
+double CPU::alu_fmax_d(double a, double b) {
+  if(isnan(a) && !isnan(b)) return b;
+  if(!isnan(a) && isnan(b)) return a;
+  if(isnan(a) && isnan(b)) return std::bit_cast<double>(0x7FF8000000000000); // = canon NaN in Double prec.
+
+  if(a == 0.0f && std::signbit(a) && b == 0.0f && !std::signbit(b)) return +0.0f;
+  if(a == 0.0f && !std::signbit(a) && b == 0.0f && std::signbit(b)) return +0.0f;
+
+  return std::max(a, b);
 }
 
 void CPU::enter_trap(u32 trap_addr, TRAP_CODE cause, u32 tval) {

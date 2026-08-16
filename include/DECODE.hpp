@@ -84,6 +84,63 @@ enum class Op
   AMOMINU,
   AMOMAXU,
 
+  /* RV32F Standard Extension */
+  FLW,
+  FSW,
+  FMADD_S,
+  FMSUB_S,
+  FNMSUB_S,
+  FNMADD_S,
+  FADD_S,
+  FSUB_S,
+  FMUL_S,
+  FDIV_S,
+  FSQRT_S,
+  FSGNJ_S,
+  FSGNJN_S,
+  FSGNJX_S,
+  FMIN_S,
+  FMAX_S,
+  FCVT_W_S,
+  FCVT_WU_S,
+  FMV_X_W,
+  FEQ_S,
+  FLT_S,
+  FLE_S,
+  FCLASS_S,
+  FCVT_S_W,
+  FCVT_S_WU,
+  FMV_W_X,
+
+  /* RV32D Standart Extension */
+  FLD,
+  FSD,
+  FMADD_D,
+  FMSUB_D,
+  FNMSUB_D,
+  FNMADD_D,
+  FADD_D,
+  FSUB_D,
+  FMUL_D,
+  FDIV_D,
+  FSQRT_D,
+  FSGNJ_D,
+  FSGNJN_D,
+  FSGNJX_D,
+  FMIN_D,
+  FMAX_D,
+  FCVT_S_D,
+  FCVT_D_S,
+  FEQ_D,
+  FLT_D,
+  FLE_D,
+  FCLASS_D,
+  FCVT_W_D,
+  FCVT_WU_D,
+  FCVT_D_W,
+  FCVT_D_WU,
+
+
   /* Other */
   WFI,
   MRET,
@@ -104,19 +161,26 @@ enum class Format
 };
 
 enum class BaseType : u8 {
-  INVALID = 0,
-  ALU_R   = 0b0110011,
-  ALU_I   = 0b0010011,
-  LOAD    = 0b0000011,
-  STORE   = 0b0100011,
-  BRANCH  = 0b1100011,
-  JAL     = 0b1101111,
-  JALR    = 0b1100111,
-  LUI     = 0b0110111,
-  AUIPC   = 0b0010111,
-  FENCE   = 0b0001111,
-  SYSTEM  = 0b1110011,
-  ATOMIC  = 0b0101111, 
+  INVALID   = 0,
+  ALU_R     = 0b0110011,
+  ALU_I     = 0b0010011,
+  LOAD      = 0b0000011,
+  STORE     = 0b0100011,
+  BRANCH    = 0b1100011,
+  JAL       = 0b1101111,
+  JALR      = 0b1100111,
+  LUI       = 0b0110111,
+  AUIPC     = 0b0010111,
+  FENCE     = 0b0001111,
+  SYSTEM    = 0b1110011,
+  ATOMIC    = 0b0101111, 
+  LOAD_FP   = 0b0000111,
+  STORE_FP  = 0b0100111,
+  FMADD     = 0b1000011,
+  FMSUB     = 0b1000111,
+  FNMSUB    = 0b1001011,
+  FNMADD    = 0b1001111,
+  FP_ALU    = 0b1010011,
 };
 
 typedef struct Instruction{
@@ -131,11 +195,21 @@ typedef struct Instruction{
   u8 rd;
   u8 rs1;
   u8 rs2;
+  u8 rs3;
   
   u8 funct3;
   u8 funct7;
 
   i32 imm;
+
+  // for fp ops.
+  // 0b00 = S = Single = 32 Bit
+  // 0b01 = D = Double = 64 Bit
+  // 0b10 = H = Half   = 16 Bit
+  // 0b11 = Q = Quad   = 128 Bit
+  PREC width;   // (f7 & 0x3)
+  u8 funct5;    // ((f7 & ~0x3) >> 2)
+  ROUNDING_MODE rm;
 
   bool aq;
   bool rl;

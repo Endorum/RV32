@@ -15,4 +15,6 @@ i32 sign_extend(u32 value, int bits);
 
 std::string mem_str(u8 *mem, u32 start, u32 size, u8 cols = 8);
 std::string reg_idx_str(u32 idx);
+
+
 #endif // UTILS_HPP

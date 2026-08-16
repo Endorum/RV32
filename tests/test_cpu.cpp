@@ -14,6 +14,10 @@
 
 #include "test_common.hpp"
 
+// BITSIZE became an enum class (2026-08-16); this alias keeps the many
+// bus.load(..., WORD) call sites readable
+static constexpr BITSIZE WORD = BITSIZE::WORD;
+
 static constexpr u32 RAM_BYTES = 0x1000;
 static constexpr u32 RESULT0 = 0x200;
 static constexpr u32 RESULT1 = 0x204;
@@ -678,6 +682,657 @@ static void test_wfi_is_nop() {
   });
 }
 
+// ------------------------------------------------- FP loads/stores (F/D)
+//
+// No FP arithmetic yet — these pin down the memory path and the register
+// file semantics: NaN-boxing on FLW, little-endian word order on FLD/FSD,
+// and FSW storing exactly the low 4 bytes. FP data staged at 0x300 via
+// integer stores; fsd is the only way to observe all 64 register bits.
+
+static void test_flw_nan_boxing() {
+  // FLW must box the 32-bit value: upper half of the f-register all-ones
+  guarded("flw nan-box", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x11100293, // addi t0, x0, 0x111
+      0x30502023, // sw   t0, 0x300(x0)
+      0x30002087, // flw  ft1, 0x300(x0)    ft1 = 0xFFFFFFFF_00000111
+      0x20103027, // fsd  ft1, 0x200(x0)    dump all 64 bits
+    }, 4);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x111);      // payload
+    CHECK_EQ(bus.load(RESULT1, WORD), 0xFFFFFFFF); // the NaN box
+  });
+}
+
+static void test_fld_fsd_word_order() {
+  // fld from two known words, then observe the LOW half alone via fsw
+  // (catches a swapped load even if fsd swaps identically), then the full
+  // register via fsd (pins the store direction)
+  guarded("fld/fsd order", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x11100293, // addi t0, x0, 0x111
+      0x22200313, // addi t1, x0, 0x222
+      0x30502023, // sw   t0, 0x300(x0)     low  word
+      0x30602223, // sw   t1, 0x304(x0)     high word
+      0x30003087, // fld  ft1, 0x300(x0)    ft1 = 0x00000222_00000111
+      0x20102427, // fsw  ft1, 0x208(x0)    RESULT2 = low half only
+      0x20103027, // fsd  ft1, 0x200(x0)    RESULT0/1 = full register
+    }, 7);
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x111); // load kept addr as low word
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x111); // store put low word at addr
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x222); // ... and high at addr+4
+  });
+}
+
+static void test_fsw_writes_four_bytes() {
+  // fsw of a register holding a 64-bit value must write exactly 4 bytes —
+  // a sentinel in the adjacent word must survive
+  guarded("fsw width", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x11100293, // addi t0, x0, 0x111
+      0x22200313, // addi t1, x0, 0x222
+      0x30502023, // sw   t0, 0x300(x0)
+      0x30602223, // sw   t1, 0x304(x0)
+      0xFFF00393, // addi t2, x0, -1
+      0x20702223, // sw   t2, 0x204(x0)     sentinel next to RESULT0
+      0x30003087, // fld  ft1, 0x300(x0)    full 64-bit value
+      0x20102027, // fsw  ft1, 0x200(x0)    low word only
+    }, 8);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x111);      // low half stored
+    CHECK_EQ(bus.load(RESULT1, WORD), 0xFFFFFFFF); // sentinel untouched
+  });
+}
+
+// ------------------------------------------------- fused multiply-add (F/D)
+//
+// FP constants are staged in RAM via lui/sw and loaded with flw/fld; results
+// observed as raw bit patterns via fsw/fsd. The four fused variants are
+// checked against values that make every sign mistake visible:
+//   a=2, b=3, c=5:  fmadd=11  fmsub=1  fnmsub=-1  fnmadd=-11
+
+static void test_fma_s_four_variants() {
+  guarded("fma.s variants", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400002B7, // lui  t0, 0x40000       2.0f
+      0x30502023, // sw   t0, 0x300(x0)
+      0x404002B7, // lui  t0, 0x40400       3.0f
+      0x30502223, // sw   t0, 0x304(x0)
+      0x40A002B7, // lui  t0, 0x40A00       5.0f
+      0x30502423, // sw   t0, 0x308(x0)
+      0x30002087, // flw  ft1, 0x300(x0)
+      0x30402107, // flw  ft2, 0x304(x0)
+      0x30802187, // flw  ft3, 0x308(x0)
+      0x1820F243, // fmadd.s  ft4, ft1, ft2, ft3     2*3+5 = 11
+      0x20402027, // fsw  ft4, 0x200(x0)
+      0x1820F247, // fmsub.s  ft4, ft1, ft2, ft3     2*3-5 = 1
+      0x20402227, // fsw  ft4, 0x204(x0)
+      0x1820F24B, // fnmsub.s ft4, ft1, ft2, ft3    -2*3+5 = -1
+      0x20402427, // fsw  ft4, 0x208(x0)
+      0x1820F24F, // fnmadd.s ft4, ft1, ft2, ft3    -2*3-5 = -11
+      0x20402627, // fsw  ft4, 0x20C(x0)
+    }, 17);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x41300000); //  11.0f
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x3F800000); //   1.0f
+    CHECK_EQ(bus.load(RESULT2, WORD), 0xBF800000); //  -1.0f
+    CHECK_EQ(bus.load(0x20C, WORD),   0xC1300000); // -11.0f
+  });
+}
+
+static void test_fma_single_rounding() {
+  // a = 1+2^-12: the true square 1 + 2^-11 + 2^-24 needs 25 significand
+  // bits, so a separate multiply rounds the 2^-24 away and (a*a)+c gives
+  // exactly 0. A REAL fused op keeps it and yields 2^-24. Pins std::fma
+  // against the (a*b)+c shortcut.
+  guarded("fma fusion", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x3F8012B7, // lui  t0, 0x3F801
+      0x80028293, // addi t0, t0, -2048     t0 = 0x3F800800 = 1+2^-12
+      0x30502023, // sw   t0, 0x300(x0)
+      0xBF8012B7, // lui  t0, 0xBF801       -(1+2^-11)
+      0x30502223, // sw   t0, 0x304(x0)
+      0x30002087, // flw  ft1, 0x300(x0)
+      0x30402187, // flw  ft3, 0x304(x0)
+      0x1810F243, // fmadd.s ft4, ft1, ft1, ft3
+      0x20402027, // fsw  ft4, 0x200(x0)
+    }, 9);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x33800000); // 2^-24; 0 = not fused
+  });
+}
+
+static void test_fma_sign_of_zero() {
+  // exact cancellation must give +0. Formulating fnmsub as -(fma(a,b,-c))
+  // instead of fma(-a,b,c) shows up here as -0 (0x80000000).
+  guarded("fma zero sign", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x3F8002B7, // lui  t0, 0x3F800       1.0f
+      0x30502023, // sw   t0, 0x300(x0)
+      0x30002087, // flw  ft1, 0x300(x0)
+      0x0810F24B, // fnmsub.s ft4, ft1, ft1, ft1    -(1*1)+1 = +0
+      0x20402027, // fsw  ft4, 0x200(x0)
+      0x0810F247, // fmsub.s  ft4, ft1, ft1, ft1      1*1-1 = +0
+      0x20402227, // fsw  ft4, 0x204(x0)
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x00000000); // +0, NOT 0x80000000
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x00000000);
+  });
+}
+
+static void test_fma_d_four_variants() {
+  guarded("fma.d variants", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, // sw   x0, 0x300(x0)     low(2.0)
+      0x400002B7, // lui  t0, 0x40000
+      0x30502223, // sw   t0, 0x304(x0)     high(2.0)
+      0x30002423, // sw   x0, 0x308(x0)     low(3.0)
+      0x400802B7, // lui  t0, 0x40080
+      0x30502623, // sw   t0, 0x30C(x0)     high(3.0)
+      0x30002823, // sw   x0, 0x310(x0)     low(5.0)
+      0x401402B7, // lui  t0, 0x40140
+      0x30502A23, // sw   t0, 0x314(x0)     high(5.0)
+      0x30003087, // fld  ft1, 0x300(x0)
+      0x30803107, // fld  ft2, 0x308(x0)
+      0x31003187, // fld  ft3, 0x310(x0)
+      0x1A20F243, // fmadd.d  ft4, ft1, ft2, ft3
+      0x20403027, // fsd  ft4, 0x200(x0)
+      0x1A20F247, // fmsub.d  ft4, ft1, ft2, ft3
+      0x20403427, // fsd  ft4, 0x208(x0)
+      0x1A20F24B, // fnmsub.d ft4, ft1, ft2, ft3
+      0x20403827, // fsd  ft4, 0x210(x0)
+      0x1A20F24F, // fnmadd.d ft4, ft1, ft2, ft3
+      0x20403C27, // fsd  ft4, 0x218(x0)
+    }, 20);
+    CHECK_EQ(bus.load(0x200, WORD), 0);          //  11.0 low
+    CHECK_EQ(bus.load(0x204, WORD), 0x40260000); //  11.0 high
+    CHECK_EQ(bus.load(0x208, WORD), 0);          //   1.0 low
+    CHECK_EQ(bus.load(0x20C, WORD), 0x3FF00000); //   1.0 high
+    CHECK_EQ(bus.load(0x210, WORD), 0);          //  -1.0 low
+    CHECK_EQ(bus.load(0x214, WORD), 0xBFF00000); //  -1.0 high
+    CHECK_EQ(bus.load(0x218, WORD), 0);          // -11.0 low
+    CHECK_EQ(bus.load(0x21C, WORD), 0xC0260000); // -11.0 high
+  });
+}
+
+static void test_fma_s_consumes_nan_box() {
+  // ft1 holds a plain double (upper bits NOT all-ones) — a .s op reading it
+  // must see canonical NaN, so NaN*1+1 = NaN, not 2*1+1 = 3.
+  // Exact-canonical check (0x7FC00000): holds because the boxed-read rule
+  // injects the canonical pattern and hosts propagate that payload; loosen
+  // to an is-NaN check only if a host is ever found violating it.
+  guarded("fma.s box check", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, // sw   x0, 0x300(x0)
+      0x400002B7, // lui  t0, 0x40000
+      0x30502223, // sw   t0, 0x304(x0)     2.0 (double) at 0x300
+      0x30003087, // fld  ft1, 0x300(x0)    ft1 = 2.0, upper bits 0x40000000
+      0x3F8002B7, // lui  t0, 0x3F800
+      0x30502423, // sw   t0, 0x308(x0)
+      0x30802107, // flw  ft2, 0x308(x0)    ft2 = 1.0f, properly boxed
+      0x1020F243, // fmadd.s ft4, ft1, ft2, ft2
+      0x20402027, // fsw  ft4, 0x200(x0)
+    }, 9);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x7FC00000); // canonical NaN, not 3.0f
+  });
+}
+
+// ------------------------------------------------------ FP_ALU single (F)
+//
+// Golden words from riscv64-elf-as as usual. Constants staged at 0x300+ via
+// integer stores, results observed as raw bit patterns via fsw (f-results)
+// or sw (x-results).
+
+static void test_fp_s_arithmetic() {
+  guarded("f arith", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400002B7, 0x30502023, // 2.0f -> 0x300
+      0x404002B7, 0x30502223, // 3.0f -> 0x304
+      0x30002087, 0x30402107, // flw ft1, ft2
+      0x0020F1D3, 0x20302027, // fadd.s  ft3,ft1,ft2 ; fsw 0x200
+      0x0820F1D3, 0x20302227, // fsub.s              ; fsw 0x204
+      0x1020F1D3, 0x20302427, // fmul.s              ; fsw 0x208
+      0x181171D3, 0x20302627, // fdiv.s  ft3,ft2,ft1 ; fsw 0x20C
+      0x408002B7, 0x30502023, // 4.0f -> 0x300
+      0x30002087,             // flw ft1
+      0x5800F1D3, 0x20302827, // fsqrt.s ft3,ft1     ; fsw 0x210
+      0x30002023, 0x30002107, // 0.0f -> 0x300; flw ft2
+      0x3F8002B7, 0x30502223, // 1.0f -> 0x304
+      0x30402087,             // flw ft1
+      0x1820F1D3, 0x20302A27, // fdiv.s ft3,ft1,ft2 (1/0) ; fsw 0x214
+    }, 26);
+    CHECK_EQ(bus.load(0x200, WORD), 0x40A00000); // 5.0f
+    CHECK_EQ(bus.load(0x204, WORD), 0xBF800000); // -1.0f
+    CHECK_EQ(bus.load(0x208, WORD), 0x40C00000); // 6.0f
+    CHECK_EQ(bus.load(0x20C, WORD), 0x3FC00000); // 1.5f
+    CHECK_EQ(bus.load(0x210, WORD), 0x40000000); // sqrt(4) = 2.0f
+    CHECK_EQ(bus.load(0x214, WORD), 0x7F800000); // 1/0 = +inf (IEEE, no trap)
+  });
+}
+
+static void test_fp_s_min_max() {
+  // the riscv-tests classics: NaN handling and the sign of zero
+  guarded("fmin/fmax", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x3F8002B7, 0x30502023, // 1.0f -> 0x300
+      0x400002B7, 0x30502223, // 2.0f -> 0x304
+      0x30002087, 0x30402107, // flw ft1, ft2
+      0x282081D3, 0x20302027, // fmin.s ft3,ft1,ft2 ; fsw 0x200
+      0x282091D3, 0x20302227, // fmax.s             ; fsw 0x204
+      0x800002B7, 0x30502023, // -0.0f -> 0x300
+      0x30002223,             // +0.0f -> 0x304
+      0x30002087, 0x30402107, // ft1 = -0, ft2 = +0
+      0x281101D3, 0x20302427, // fmin.s ft3,ft2,ft1 (+0,-0) ; fsw 0x208
+      0x282091D3, 0x20302627, // fmax.s ft3,ft1,ft2 (-0,+0) ; fsw 0x20C
+      0x281091D3, 0x20302827, // fmax.s ft3,ft1,ft1 (-0,-0) ; fsw 0x210
+      0x282101D3, 0x20302A27, // fmin.s ft3,ft2,ft2 (+0,+0) ; fsw 0x214
+      0x7FC002B7, 0x30502023, // qNaN -> 0x300
+      0x30002087,             // ft1 = NaN
+      0x3F8002B7, 0x30502223, // 1.0f -> 0x304
+      0x30402107,             // ft2 = 1.0
+      0x282081D3, 0x20302C27, // fmin.s ft3,ft1,ft2 (NaN,1) ; fsw 0x218
+      0x281091D3, 0x20302E27, // fmax.s ft3,ft1,ft1 (NaN,NaN) ; fsw 0x21C
+    }, 33);
+    CHECK_EQ(bus.load(0x200, WORD), 0x3F800000); // min(1,2) = 1
+    CHECK_EQ(bus.load(0x204, WORD), 0x40000000); // max(1,2) = 2
+    CHECK_EQ(bus.load(0x208, WORD), 0x80000000); // min(+0,-0) = -0
+    CHECK_EQ(bus.load(0x20C, WORD), 0x00000000); // max(-0,+0) = +0
+    CHECK_EQ(bus.load(0x210, WORD), 0x80000000); // max(-0,-0) = -0
+    CHECK_EQ(bus.load(0x214, WORD), 0x00000000); // min(+0,+0) = +0
+    CHECK_EQ(bus.load(0x218, WORD), 0x3F800000); // one NaN -> the other operand
+    CHECK_EQ(bus.load(0x21C, WORD), 0x7FC00000); // both NaN -> canonical
+  });
+}
+
+static void test_fp_s_sgnj() {
+  guarded("fsgnj", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400002B7, 0x30502023, // 2.0f -> 0x300
+      0xC04002B7, 0x30502223, // -3.0f -> 0x304
+      0x30002087, 0x30402107, // flw ft1, ft2
+      0x202081D3, 0x20302027, // fsgnj.s  ft3,ft1,ft2 ; fsw 0x200
+      0x202091D3, 0x20302227, // fsgnjn.s ft3,ft1,ft2 ; fsw 0x204
+      0x202121D3, 0x20302427, // fsgnjx.s ft3,ft2,ft2 = fabs.s ; fsw 0x208
+      0x201091D3, 0x20302627, // fsgnjn.s ft3,ft1,ft1 = fneg.s ; fsw 0x20C
+      0x7F8002B7, 0x00128293, // t0 = 0x7F800001 (sNaN with payload 1)
+      0x30502023, 0x30002087, // -> 0x300; flw ft1
+      0x201081D3, 0x20302827, // fsgnj.s ft3,ft1,ft1 = fmv.s ; fsw 0x210
+    }, 20);
+    CHECK_EQ(bus.load(0x200, WORD), 0xC0000000); // 2.0 with -3.0's sign
+    CHECK_EQ(bus.load(0x204, WORD), 0x40000000); // 2.0 with inverted sign
+    CHECK_EQ(bus.load(0x208, WORD), 0x40400000); // fabs(-3) = 3.0
+    CHECK_EQ(bus.load(0x20C, WORD), 0xC0000000); // fneg(2) = -2.0
+    // sgnj is a bit operation: the sNaN payload must survive verbatim,
+    // NOT get canonicalized to 0x7FC00000
+    CHECK_EQ(bus.load(0x210, WORD), 0x7F800001);
+  });
+}
+
+static void test_fp_s_compare() {
+  guarded("feq/flt/fle", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x3F8002B7, 0x30502023, // 1.0f -> 0x300
+      0x400002B7, 0x30502223, // 2.0f -> 0x304
+      0x7FC002B7, 0x30502423, // qNaN -> 0x308
+      0x30002087, 0x30402107, 0x30802187, // flw ft1, ft2, ft3
+      0xA0209353, 0x20602023, // flt.s t1,ft1,ft2 (1<2)   ; sw 0x200
+      0xA0108353, 0x20602223, // fle.s t1,ft1,ft1 (1<=1)  ; sw 0x204
+      0xA020A353, 0x20602423, // feq.s t1,ft1,ft2 (1==2)  ; sw 0x208
+      0xA010A353, 0x20602623, // feq.s t1,ft1,ft1 (1==1)  ; sw 0x20C
+      0xA031A353, 0x20602823, // feq.s t1,ft3,ft3 (NaN)   ; sw 0x210
+      0xA0119353, 0x20602A23, // flt.s t1,ft3,ft1 (NaN<1) ; sw 0x214
+      0x800002B7, 0x30502023, // -0.0f -> 0x300
+      0x30002087,             // ft1 = -0
+      0x30002223, 0x30402107, // +0.0f -> 0x304; ft2 = +0
+      0xA020A353, 0x20602C23, // feq.s t1,ft1,ft2 (-0==+0); sw 0x218
+    }, 28);
+    CHECK_EQ(bus.load(0x200, WORD), 1); // 1 < 2
+    CHECK_EQ(bus.load(0x204, WORD), 1); // 1 <= 1
+    CHECK_EQ(bus.load(0x208, WORD), 0); // 1 == 2
+    CHECK_EQ(bus.load(0x20C, WORD), 1); // 1 == 1
+    CHECK_EQ(bus.load(0x210, WORD), 0); // NaN == NaN is false
+    CHECK_EQ(bus.load(0x214, WORD), 0); // NaN < x is false
+    CHECK_EQ(bus.load(0x218, WORD), 1); // -0 == +0 per IEEE
+  });
+}
+
+static void test_fp_s_fclass() {
+  // one probe per class, results in slots 0x200 + 4*i, expected value 1<<i
+  guarded("fclass", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0xFF8002B7, 0x30502023, 0x30002087, 0xE0009353, 0x20602023, // -inf
+      0xBF8002B7, 0x30502023, 0x30002087, 0xE0009353, 0x20602223, // -1.0
+      0x800002B7, 0x00128293, 0x30502023, 0x30002087, 0xE0009353,
+      0x20602423,                                                 // -subnormal
+      0x800002B7, 0x30502023, 0x30002087, 0xE0009353, 0x20602623, // -0
+      0x30002023, 0x30002087, 0xE0009353, 0x20602823,             // +0
+      0x00100293, 0x30502023, 0x30002087, 0xE0009353, 0x20602A23, // +subnormal
+      0x3F8002B7, 0x30502023, 0x30002087, 0xE0009353, 0x20602C23, // +1.0
+      0x7F8002B7, 0x30502023, 0x30002087, 0xE0009353, 0x20602E23, // +inf
+      0x7F8002B7, 0x00128293, 0x30502023, 0x30002087, 0xE0009353,
+      0x22602023,                                                 // sNaN
+      0x7FC002B7, 0x30502023, 0x30002087, 0xE0009353, 0x22602223, // qNaN
+    }, 51);
+    for (int i = 0; i < 10; i++)
+      CHECK_EQ(bus.load(0x200 + 4 * i, WORD), 1u << i);
+  });
+}
+
+static void test_fp_s_cvt_to_int() {
+  // the saturation table of the F chapter, plus in-range values chosen so
+  // truncation and round-nearest-even agree (rm handling comes later)
+  guarded("fcvt.w/wu.s", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x401002B7, 0x30502023, 0x30002087, 0xC000F353, 0x20602023, //  2.25
+      0xC01002B7, 0x30502023, 0x30002087, 0xC000F353, 0x20602223, // -2.25
+      0x7F8002B7, 0x30502023, 0x30002087, 0xC000F353, 0x20602423, // w(+inf)
+      0xFF8002B7, 0x30502023, 0x30002087, 0xC000F353, 0x20602623, // w(-inf)
+      0x7FC002B7, 0x30502023, 0x30002087, 0xC000F353, 0x20602823, // w(NaN)
+      0xC010F353, 0x20602A23,                                     // wu(NaN)
+      0xBF8002B7, 0x30502023, 0x30002087, 0xC010F353, 0x20602C23, // wu(-1.0)
+      0x4F0002B7, 0x30502023, 0x30002087, 0xC000F353, 0x20602E23, // w(2^31)
+      0xC010F353, 0x22602023,                                     // wu(2^31)
+      0x4F8002B7, 0x30502023, 0x30002087, 0xC010F353, 0x22602223, // wu(2^32)
+    }, 44);
+    CHECK_EQ(bus.load(0x200, WORD), 2);          // trunc(2.25)
+    CHECK_EQ(bus.load(0x204, WORD), 0xFFFFFFFE); // trunc(-2.25) = -2
+    CHECK_EQ(bus.load(0x208, WORD), 0x7FFFFFFF); // +inf saturates to INT_MAX
+    CHECK_EQ(bus.load(0x20C, WORD), 0x80000000); // -inf saturates to INT_MIN
+    CHECK_EQ(bus.load(0x210, WORD), 0x7FFFFFFF); // NaN -> INT_MAX (positive!)
+    CHECK_EQ(bus.load(0x214, WORD), 0xFFFFFFFF); // NaN -> UINT_MAX
+    CHECK_EQ(bus.load(0x218, WORD), 0);          // wu(-1.0) saturates to 0
+    CHECK_EQ(bus.load(0x21C, WORD), 0x7FFFFFFF); // w(2^31) saturates
+    CHECK_EQ(bus.load(0x220, WORD), 0x80000000); // wu(2^31) is VALID
+    CHECK_EQ(bus.load(0x224, WORD), 0xFFFFFFFF); // wu(2^32) saturates
+  });
+}
+
+static void test_fp_s_cvt_from_int_and_fmv() {
+  guarded("fcvt.s.w/fmv", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0xFFF00293,             // t0 = 0xFFFFFFFF
+      0xD002F0D3, 0x20102027, // fcvt.s.w  ft1,t0 (-1)  ; fsw 0x200
+      0xD012F0D3, 0x20102227, // fcvt.s.wu ft1,t0 (max) ; fsw 0x204
+      0xC00002B7,             // t0 = 0xC0000000 (bits of -2.0f)
+      0xF00280D3, 0x20102427, // fmv.w.x ft1,t0 ; fsw 0x208
+      0xE0008353, 0x20602623, // fmv.x.w t1,ft1 ; sw 0x20C
+      0x30002023, 0x400002B7, // double 2.0 -> 0x300/0x304
+      0x30502223, 0x30003087, // ... ; fld ft1 (NOT boxed)
+      0xE0008353, 0x20602823, // fmv.x.w t1,ft1 ; sw 0x210
+    }, 16);
+    CHECK_EQ(bus.load(0x200, WORD), 0xBF800000); // (float)(i32)-1 = -1.0f
+    // 4294967295 rounds up to 2^32 under round-nearest-even
+    CHECK_EQ(bus.load(0x204, WORD), 0x4F800000);
+    CHECK_EQ(bus.load(0x208, WORD), 0xC0000000); // fmv.w.x: raw bits in
+    CHECK_EQ(bus.load(0x20C, WORD), 0xC0000000); // fmv.x.w: raw bits out
+    // fmv.x.w is a TRANSFER op: no box check, raw low word of the double
+    // (2.0 has low word 0) — NOT canonical NaN
+    CHECK_EQ(bus.load(0x210, WORD), 0x00000000);
+  });
+}
+
+// ------------------------------------------------------ FP_ALU double (D)
+//
+// Mirror of the single-precision net with 64-bit constants (staged as two
+// words, low at 0x300/0x308, high at 0x304/0x30C) and results read back as
+// word pairs from fsd. Plus D-specific probes: fcvt.d.w exactness at 2^24+1
+// (catches a float round-trip) and 32-bit saturation from double inputs.
+
+static void test_fp_d_arithmetic() {
+  guarded("d arith", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, 0x400002B7, 0x30502223, // 2.0 -> 0x300
+      0x30002423, 0x400802B7, 0x30502623, // 3.0 -> 0x308
+      0x30003087, 0x30803107,             // fld ft1, ft2
+      0x0220F1D3, 0x20303027,             // fadd.d ; fsd 0x200
+      0x0A20F1D3, 0x20303427,             // fsub.d ; fsd 0x208
+      0x1220F1D3, 0x20303827,             // fmul.d ; fsd 0x210
+      0x1A1171D3, 0x20303C27,             // fdiv.d ft3,ft2,ft1 ; fsd 0x218
+      0x401002B7, 0x30502223,             // 4.0 -> 0x300
+      0x30003087,                         // fld ft1
+      0x5A00F1D3, 0x22303027,             // fsqrt.d ; fsd 0x220
+      0x30002423, 0x30002623,             // 0.0 -> 0x308
+      0x30803107,                         // fld ft2
+      0x3FF002B7, 0x30502223,             // 1.0 -> 0x300
+      0x30003087,                         // fld ft1
+      0x1A20F1D3, 0x22303427,             // fdiv.d (1/0) ; fsd 0x228
+    }, 29);
+    CHECK_EQ(bus.load(0x200, WORD), 0);          // 5.0
+    CHECK_EQ(bus.load(0x204, WORD), 0x40140000);
+    CHECK_EQ(bus.load(0x208, WORD), 0);          // -1.0
+    CHECK_EQ(bus.load(0x20C, WORD), 0xBFF00000);
+    CHECK_EQ(bus.load(0x210, WORD), 0);          // 6.0
+    CHECK_EQ(bus.load(0x214, WORD), 0x40180000);
+    CHECK_EQ(bus.load(0x218, WORD), 0);          // 1.5
+    CHECK_EQ(bus.load(0x21C, WORD), 0x3FF80000);
+    CHECK_EQ(bus.load(0x220, WORD), 0);          // sqrt(4) = 2.0
+    CHECK_EQ(bus.load(0x224, WORD), 0x40000000);
+    CHECK_EQ(bus.load(0x228, WORD), 0);          // 1/0 = +inf
+    CHECK_EQ(bus.load(0x22C, WORD), 0x7FF00000);
+  });
+}
+
+static void test_fp_d_min_max() {
+  guarded("fmin/fmax.d", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, 0x3FF002B7, 0x30502223, // 1.0 -> 0x300
+      0x30002423, 0x400002B7, 0x30502623, // 2.0 -> 0x308
+      0x30003087, 0x30803107,             // fld ft1, ft2
+      0x2A2081D3, 0x20303027,             // fmin.d ; fsd 0x200
+      0x2A2091D3, 0x20303427,             // fmax.d ; fsd 0x208
+      0x800002B7, 0x30502223,             // -0.0 -> 0x300
+      0x30002623,                         // +0.0 -> 0x308
+      0x30003087, 0x30803107,             // ft1 = -0, ft2 = +0
+      0x2A1101D3, 0x20303827,             // fmin.d(+0,-0) ; fsd 0x210
+      0x2A2091D3, 0x20303C27,             // fmax.d(-0,+0) ; fsd 0x218
+      0x2A1091D3, 0x22303027,             // fmax.d(-0,-0) ; fsd 0x220
+      0x2A2101D3, 0x22303427,             // fmin.d(+0,+0) ; fsd 0x228
+      0x7FF802B7, 0x30502223,             // qNaN -> 0x300
+      0x3FF002B7, 0x30502623,             // 1.0 -> 0x308
+      0x30003087, 0x30803107,             // fld ft1, ft2
+      0x2A2081D3, 0x22303827,             // fmin.d(NaN,1) ; fsd 0x230
+      0x2A1091D3, 0x22303C27,             // fmax.d(NaN,NaN) ; fsd 0x238
+    }, 35);
+    CHECK_EQ(bus.load(0x200, WORD), 0);          // min(1,2) = 1.0
+    CHECK_EQ(bus.load(0x204, WORD), 0x3FF00000);
+    CHECK_EQ(bus.load(0x208, WORD), 0);          // max(1,2) = 2.0
+    CHECK_EQ(bus.load(0x20C, WORD), 0x40000000);
+    CHECK_EQ(bus.load(0x210, WORD), 0);          // min(+0,-0) = -0
+    CHECK_EQ(bus.load(0x214, WORD), 0x80000000);
+    CHECK_EQ(bus.load(0x218, WORD), 0);          // max(-0,+0) = +0
+    CHECK_EQ(bus.load(0x21C, WORD), 0x00000000);
+    CHECK_EQ(bus.load(0x220, WORD), 0);          // max(-0,-0) = -0
+    CHECK_EQ(bus.load(0x224, WORD), 0x80000000);
+    CHECK_EQ(bus.load(0x228, WORD), 0);          // min(+0,+0) = +0
+    CHECK_EQ(bus.load(0x22C, WORD), 0x00000000);
+    CHECK_EQ(bus.load(0x230, WORD), 0);          // one NaN -> other = 1.0
+    CHECK_EQ(bus.load(0x234, WORD), 0x3FF00000);
+    CHECK_EQ(bus.load(0x238, WORD), 0);          // both NaN -> canonical
+    CHECK_EQ(bus.load(0x23C, WORD), 0x7FF80000);
+  });
+}
+
+static void test_fp_d_sgnj() {
+  guarded("fsgnj.d", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, 0x400002B7, 0x30502223, // 2.0 -> 0x300
+      0x30002423, 0xC00802B7, 0x30502623, // -3.0 -> 0x308
+      0x30003087, 0x30803107,             // fld ft1, ft2
+      0x222081D3, 0x20303027,             // fsgnj.d  ; fsd 0x200
+      0x222091D3, 0x20303427,             // fsgnjn.d ; fsd 0x208
+      0x222121D3, 0x20303827,             // fsgnjx.d ft3,ft2,ft2 = fabs ; 0x210
+      0x221091D3, 0x20303C27,             // fsgnjn.d ft3,ft1,ft1 = fneg ; 0x218
+      0x00100293, 0x30502023,             // low word 1 -> 0x300
+      0x7FF002B7, 0x30502223,             // sNaN 0x7FF00000_00000001
+      0x30003087,                         // fld ft1
+      0x221081D3, 0x22303027,             // fsgnj.d = fmv.d ; fsd 0x220
+    }, 23);
+    CHECK_EQ(bus.load(0x200, WORD), 0);          // -2.0
+    CHECK_EQ(bus.load(0x204, WORD), 0xC0000000);
+    CHECK_EQ(bus.load(0x208, WORD), 0);          // +2.0
+    CHECK_EQ(bus.load(0x20C, WORD), 0x40000000);
+    CHECK_EQ(bus.load(0x210, WORD), 0);          // fabs(-3) = 3.0
+    CHECK_EQ(bus.load(0x214, WORD), 0x40080000);
+    CHECK_EQ(bus.load(0x218, WORD), 0);          // fneg(2) = -2.0
+    CHECK_EQ(bus.load(0x21C, WORD), 0xC0000000);
+    CHECK_EQ(bus.load(0x220, WORD), 1);          // sNaN payload survives
+    CHECK_EQ(bus.load(0x224, WORD), 0x7FF00000); // verbatim
+  });
+}
+
+static void test_fp_d_compare() {
+  guarded("feq/flt/fle.d", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, 0x3FF002B7, 0x30502223, // 1.0 -> 0x300
+      0x30002423, 0x400002B7, 0x30502623, // 2.0 -> 0x308
+      0x30002823, 0x7FF802B7, 0x30502A23, // qNaN -> 0x310
+      0x30003087, 0x30803107, 0x31003187, // fld ft1, ft2, ft3
+      0xA2209353, 0x20602023,             // flt.d 1<2  ; sw 0x200
+      0xA2108353, 0x20602223,             // fle.d 1<=1 ; sw 0x204
+      0xA220A353, 0x20602423,             // feq.d 1==2 ; sw 0x208
+      0xA210A353, 0x20602623,             // feq.d 1==1 ; sw 0x20C
+      0xA231A353, 0x20602823,             // feq.d NaN  ; sw 0x210
+      0xA2119353, 0x20602A23,             // flt.d NaN<1; sw 0x214
+      0x800002B7, 0x30502223,             // -0.0 -> 0x300
+      0x30003087,                         // ft1 = -0
+      0x30002623, 0x30803107,             // +0.0 -> 0x308; ft2 = +0
+      0xA220A353, 0x20602C23,             // feq.d -0==+0 ; sw 0x218
+    }, 31);
+    CHECK_EQ(bus.load(0x200, WORD), 1);
+    CHECK_EQ(bus.load(0x204, WORD), 1);
+    CHECK_EQ(bus.load(0x208, WORD), 0);
+    CHECK_EQ(bus.load(0x20C, WORD), 1);
+    CHECK_EQ(bus.load(0x210, WORD), 0); // NaN == NaN false
+    CHECK_EQ(bus.load(0x214, WORD), 0); // NaN < x false
+    CHECK_EQ(bus.load(0x218, WORD), 1); // -0 == +0
+  });
+}
+
+static void test_fp_d_fclass() {
+  guarded("fclass.d", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, 0xFFF002B7, 0x30502223, 0x30003087, 0xE2009353,
+      0x20602023,                                              // -inf
+      0xBFF002B7, 0x30502223, 0x30003087, 0xE2009353,
+      0x20602223,                                              // -1.0
+      0x00100293, 0x30502023, 0x800002B7, 0x30502223,
+      0x30003087, 0xE2009353, 0x20602423,                      // -subnormal
+      0x30002023, 0x800002B7, 0x30502223, 0x30003087,
+      0xE2009353, 0x20602623,                                  // -0
+      0x30002223, 0x30003087, 0xE2009353, 0x20602823,          // +0
+      0x00100293, 0x30502023, 0x30003087, 0xE2009353,
+      0x20602A23,                                              // +subnormal
+      0x30002023, 0x3FF002B7, 0x30502223, 0x30003087,
+      0xE2009353, 0x20602C23,                                  // +1.0
+      0x7FF002B7, 0x30502223, 0x30003087, 0xE2009353,
+      0x20602E23,                                              // +inf
+      0x00100293, 0x30502023, 0x7FF002B7, 0x30502223,
+      0x30003087, 0xE2009353, 0x22602023,                      // sNaN
+      0x30002023, 0x7FF802B7, 0x30502223, 0x30003087,
+      0xE2009353, 0x22602223,                                  // qNaN
+    }, 57);
+    for (int i = 0; i < 10; i++)
+      CHECK_EQ(bus.load(0x200 + 4 * i, WORD), 1u << i);
+  });
+}
+
+static void test_fp_d_cvt_to_int() {
+  // 32-bit saturation from DOUBLE inputs — would catch 64-bit bounds
+  guarded("fcvt.w/wu.d", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30002023, 0x400202B7, 0x30502223, 0x30003087, 0xC200F353,
+      0x20602023,                                              //  2.25
+      0xC00202B7, 0x30502223, 0x30003087, 0xC200F353,
+      0x20602223,                                              // -2.25
+      0x7FF002B7, 0x30502223, 0x30003087, 0xC200F353,
+      0x20602423,                                              // w(+inf)
+      0xFFF002B7, 0x30502223, 0x30003087, 0xC200F353,
+      0x20602623,                                              // w(-inf)
+      0x7FF802B7, 0x30502223, 0x30003087, 0xC200F353,
+      0x20602823,                                              // w(NaN)
+      0xC210F353, 0x20602A23,                                  // wu(NaN)
+      0xBFF002B7, 0x30502223, 0x30003087, 0xC210F353,
+      0x20602C23,                                              // wu(-1.0)
+      0x41E002B7, 0x30502223, 0x30003087, 0xC200F353,
+      0x20602E23,                                              // w(2^31)
+      0xC210F353, 0x22602023,                                  // wu(2^31)
+      0x41F002B7, 0x30502223, 0x30003087, 0xC210F353,
+      0x22602223,                                              // wu(2^32)
+    }, 45);
+    CHECK_EQ(bus.load(0x200, WORD), 2);
+    CHECK_EQ(bus.load(0x204, WORD), 0xFFFFFFFE); // -2
+    CHECK_EQ(bus.load(0x208, WORD), 0x7FFFFFFF); // +inf -> INT32_MAX
+    CHECK_EQ(bus.load(0x20C, WORD), 0x80000000); // -inf -> INT32_MIN
+    CHECK_EQ(bus.load(0x210, WORD), 0x7FFFFFFF); // NaN -> INT32_MAX
+    CHECK_EQ(bus.load(0x214, WORD), 0xFFFFFFFF); // NaN -> UINT32_MAX
+    CHECK_EQ(bus.load(0x218, WORD), 0);          // wu(-1) -> 0
+    CHECK_EQ(bus.load(0x21C, WORD), 0x7FFFFFFF); // w(2^31) saturates
+    CHECK_EQ(bus.load(0x220, WORD), 0x80000000); // wu(2^31) valid
+    CHECK_EQ(bus.load(0x224, WORD), 0xFFFFFFFF); // wu(2^32) saturates
+  });
+}
+
+static void test_fp_d_cvt_from_int() {
+  guarded("fcvt.d.w/wu", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0xFFF00293,             // t0 = 0xFFFFFFFF
+      0xD20280D3, 0x20103027, // fcvt.d.w  ft1,t0 (-1)  ; fsd 0x200
+      0xD21280D3, 0x20103427, // fcvt.d.wu ft1,t0 (max) ; fsd 0x208
+      0x010002B7, 0x00128293, // t0 = 16777217 = 2^24+1
+      0xD20280D3, 0x20103827, // fcvt.d.w ; fsd 0x210
+    }, 9);
+    CHECK_EQ(bus.load(0x200, WORD), 0);          // -1.0
+    CHECK_EQ(bus.load(0x204, WORD), 0xBFF00000);
+    // 4294967295.0 is EXACT in double (unlike float, which rounds to 2^32)
+    CHECK_EQ(bus.load(0x208, WORD), 0xFFE00000);
+    CHECK_EQ(bus.load(0x20C, WORD), 0x41EFFFFF);
+    // 2^24+1 is exact in double; a float round-trip would drop the +1
+    // and store high word 0x41700000 with LOW word 0
+    CHECK_EQ(bus.load(0x210, WORD), 0x10000000);
+    CHECK_EQ(bus.load(0x214, WORD), 0x41700000);
+  });
+}
+
 // ---------------------------------------------------------------- entry
 
 void run_cpu_tests() {
@@ -712,4 +1367,26 @@ void run_cpu_tests() {
   test_sc_wrong_address_fails();
   test_amoswap_touches_only_rd_and_mem();
   test_wfi_is_nop();
+  test_flw_nan_boxing();
+  test_fld_fsd_word_order();
+  test_fsw_writes_four_bytes();
+  test_fma_s_four_variants();
+  test_fma_single_rounding();
+  test_fma_sign_of_zero();
+  test_fma_d_four_variants();
+  test_fma_s_consumes_nan_box();
+  test_fp_s_arithmetic();
+  test_fp_s_min_max();
+  test_fp_s_sgnj();
+  test_fp_s_compare();
+  test_fp_s_fclass();
+  test_fp_s_cvt_to_int();
+  test_fp_s_cvt_from_int_and_fmv();
+  test_fp_d_arithmetic();
+  test_fp_d_min_max();
+  test_fp_d_sgnj();
+  test_fp_d_compare();
+  test_fp_d_fclass();
+  test_fp_d_cvt_to_int();
+  test_fp_d_cvt_from_int();
 }

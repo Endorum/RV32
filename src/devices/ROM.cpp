@@ -29,7 +29,7 @@ u32 ROM::load(u32 address, BITSIZE size) {
   }
 
   u32 out = 0;
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < (u8)size; i++) {
     out |= data.at(address + i) << (8 * i); // little-endian
   }
 

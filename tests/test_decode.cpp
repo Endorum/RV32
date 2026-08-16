@@ -239,6 +239,180 @@ static void test_invalid_opcode_throws() {
   CHECK(decode(0xFFFFFFFF, 0).op == Op::INVALID);
 }
 
+// ------------------------------------------------------ F extension (RV32F)
+// Golden words assembled with riscv64-elf-as -march=rv32ifd; register choices:
+// ft1/ft2/ft3/ft4 = f1..f4, t0 = x5, t1 = x6, sp = x2, gp = x3.
+
+static void test_rv32f() {
+  Instruction d = decode(0x00812087, 0); // flw ft1, 8(sp)
+  CHECK(d.op == Op::FLW);
+  CHECK(d.type == BaseType::LOAD_FP);
+  CHECK(d.fmt == Format::I);
+  CHECK_EQ(d.rd, 1);
+  CHECK_EQ(d.rs1, 2);
+  CHECK_EQ(d.imm, 8);
+
+  d = decode(0xFE21AE27, 0); // fsw ft2, -4(gp)
+  CHECK(d.op == Op::FSW);
+  CHECK(d.fmt == Format::S);
+  CHECK_EQ(d.rs2, 2);
+  CHECK_EQ(d.rs1, 3);
+  CHECK_EQ(d.imm, -4);
+
+  // R4-type: rs3 rides in bits 31:27, fmt in 26:25
+  d = decode(0x203170C3, 0); // fmadd.s ft1, ft2, ft3, ft4
+  CHECK(d.op == Op::FMADD_S);
+  CHECK_EQ(d.rd, 1);
+  CHECK_EQ(d.rs1, 2);
+  CHECK_EQ(d.rs2, 3);
+  CHECK_EQ(d.rs3, 4);
+  CHECK(d.width == PREC::SINGLE);
+  CHECK(decode(0x203170C7, 0).op == Op::FMSUB_S);  // fmsub.s
+  CHECK(decode(0x203170CB, 0).op == Op::FNMSUB_S); // fnmsub.s
+  CHECK(decode(0x203170CF, 0).op == Op::FNMADD_S); // fnmadd.s
+
+  d = decode(0x003170D3, 0); // fadd.s ft1, ft2, ft3
+  CHECK(d.op == Op::FADD_S);
+  CHECK(d.type == BaseType::FP_ALU);
+  CHECK_EQ(d.funct5, 0b00000);
+  CHECK(d.width == PREC::SINGLE);
+  CHECK(decode(0x083170D3, 0).op == Op::FSUB_S);   // fsub.s
+  CHECK(decode(0x103170D3, 0).op == Op::FMUL_S);   // fmul.s
+  CHECK(decode(0x183170D3, 0).op == Op::FDIV_S);   // fdiv.s
+  CHECK(decode(0x580170D3, 0).op == Op::FSQRT_S);  // fsqrt.s ft1, ft2
+
+  // the rm field (funct3) must not affect decode of rounded ops:
+  // same fadd.s with rm=dyn (111) and rm=rtz (001)
+  CHECK(decode(0x003110D3, 0).op == Op::FADD_S);   // fadd.s ..., rtz
+
+  CHECK(decode(0x203100D3, 0).op == Op::FSGNJ_S);  // fsgnj.s
+  CHECK(decode(0x203110D3, 0).op == Op::FSGNJN_S); // fsgnjn.s
+  CHECK(decode(0x203120D3, 0).op == Op::FSGNJX_S); // fsgnjx.s
+  CHECK(decode(0x283100D3, 0).op == Op::FMIN_S);   // fmin.s
+  CHECK(decode(0x283110D3, 0).op == Op::FMAX_S);   // fmax.s
+
+  CHECK(decode(0xC00172D3, 0).op == Op::FCVT_W_S);  // fcvt.w.s  t0, ft2
+  CHECK(decode(0xC01172D3, 0).op == Op::FCVT_WU_S); // fcvt.wu.s t0, ft2
+  CHECK(decode(0xD00370D3, 0).op == Op::FCVT_S_W);  // fcvt.s.w  ft1, t1
+  CHECK(decode(0xD01370D3, 0).op == Op::FCVT_S_WU); // fcvt.s.wu ft1, t1
+
+  // funct5=11100: funct3 separates fmv.x.w (000) from fclass.s (001)
+  CHECK(decode(0xE00102D3, 0).op == Op::FMV_X_W);   // fmv.x.w  t0, ft2
+  CHECK(decode(0xE00112D3, 0).op == Op::FCLASS_S);  // fclass.s t0, ft2
+  CHECK(decode(0xF00300D3, 0).op == Op::FMV_W_X);   // fmv.w.x  ft1, t1
+
+  CHECK(decode(0xA03122D3, 0).op == Op::FEQ_S);     // feq.s t0, ft2, ft3
+  CHECK(decode(0xA03112D3, 0).op == Op::FLT_S);     // flt.s
+  CHECK(decode(0xA03102D3, 0).op == Op::FLE_S);     // fle.s
+
+  CHECK(decode(0x003170D3, 0).mnemonic == "fadd.s");
+  CHECK(decode(0xE00102D3, 0).mnemonic == "fmv.x.w");
+}
+
+// ------------------------------------------------------ D extension (RV32D)
+
+static void test_rv32d() {
+  Instruction d = decode(0x01013087, 0); // fld ft1, 16(sp)
+  CHECK(d.op == Op::FLD);
+  CHECK_EQ(d.rd, 1);
+  CHECK_EQ(d.rs1, 2);
+  CHECK_EQ(d.imm, 16);
+
+  d = decode(0xFE21BC27, 0); // fsd ft2, -8(gp)
+  CHECK(d.op == Op::FSD);
+  CHECK_EQ(d.rs2, 2);
+  CHECK_EQ(d.rs1, 3);
+  CHECK_EQ(d.imm, -8);
+
+  CHECK(decode(0x223170C3, 0).op == Op::FMADD_D);  // fmadd.d ft1,ft2,ft3,ft4
+  CHECK(decode(0x223170C7, 0).op == Op::FMSUB_D);  // fmsub.d
+  CHECK(decode(0x223170CB, 0).op == Op::FNMSUB_D); // fnmsub.d
+  CHECK(decode(0x223170CF, 0).op == Op::FNMADD_D); // fnmadd.d
+
+  d = decode(0x023170D3, 0); // fadd.d ft1, ft2, ft3
+  CHECK(d.op == Op::FADD_D);
+  CHECK_EQ(d.funct5, 0b00000);
+  CHECK(d.width == PREC::DOUBLE);
+  CHECK(decode(0x0A3170D3, 0).op == Op::FSUB_D);   // fsub.d
+  CHECK(decode(0x123170D3, 0).op == Op::FMUL_D);   // fmul.d
+  CHECK(decode(0x1A3170D3, 0).op == Op::FDIV_D);   // fdiv.d
+  CHECK(decode(0x5A0170D3, 0).op == Op::FSQRT_D);  // fsqrt.d ft1, ft2
+
+  CHECK(decode(0x223100D3, 0).op == Op::FSGNJ_D);  // fsgnj.d
+  CHECK(decode(0x223110D3, 0).op == Op::FSGNJN_D); // fsgnjn.d
+  CHECK(decode(0x223120D3, 0).op == Op::FSGNJX_D); // fsgnjx.d
+  CHECK(decode(0x2A3100D3, 0).op == Op::FMIN_D);   // fmin.d
+  CHECK(decode(0x2A3110D3, 0).op == Op::FMAX_D);   // fmax.d
+
+  // cross-format converts: width = destination, rs2 = source
+  CHECK(decode(0x401170D3, 0).op == Op::FCVT_S_D); // fcvt.s.d ft1, ft2
+  CHECK(decode(0x420100D3, 0).op == Op::FCVT_D_S); // fcvt.d.s ft1, ft2
+
+  CHECK(decode(0xA23122D3, 0).op == Op::FEQ_D);    // feq.d t0, ft2, ft3
+  CHECK(decode(0xA23112D3, 0).op == Op::FLT_D);    // flt.d
+  CHECK(decode(0xA23102D3, 0).op == Op::FLE_D);    // fle.d
+  CHECK(decode(0xE20112D3, 0).op == Op::FCLASS_D); // fclass.d t0, ft2
+
+  CHECK(decode(0xC20172D3, 0).op == Op::FCVT_W_D);  // fcvt.w.d  t0, ft2
+  CHECK(decode(0xC21172D3, 0).op == Op::FCVT_WU_D); // fcvt.wu.d t0, ft2
+  CHECK(decode(0xD20300D3, 0).op == Op::FCVT_D_W);  // fcvt.d.w  ft1, t1
+  CHECK(decode(0xD21300D3, 0).op == Op::FCVT_D_WU); // fcvt.d.wu ft1, t1
+
+  CHECK(decode(0xC21172D3, 0).mnemonic == "fcvt.wu.d");
+}
+
+// ------------------------------------ FP reserved / RV64-only encodings
+
+// Builds an R-type word from raw fields — for encodings no assembler will
+// emit. Also serves LOAD-FP/STORE-FP probes since the field slots line up
+// (funct7 = imm[11:5], rd = imm[4:0]).
+static u32 fp_word(u8 funct7, u8 rs2, u8 rs1, u8 funct3, u8 rd,
+                   u8 opcode = 0x53) {
+  return ((u32)funct7 << 25) | ((u32)rs2 << 20) | ((u32)rs1 << 15) |
+         ((u32)funct3 << 12) | ((u32)rd << 7) | opcode;
+}
+
+static void test_fp_invalid() {
+  // fmv.x.d / fmv.d.x exist only on RV64 (need 64-bit x registers) — the
+  // width=D twin of a valid S pattern must NOT fall through to the S op
+  CHECK(decode(fp_word(0b1110001, 0, 2, 0, 5), 0).op == Op::INVALID);
+  CHECK(decode(fp_word(0b1111001, 0, 6, 0, 1), 0).op == Op::INVALID);
+
+  // fmt = H (10) and Q (11): unsupported precisions on every funct5
+  CHECK(decode(fp_word(0b0000010, 3, 2, 7, 1), 0).op == Op::INVALID); // fadd.h
+  CHECK(decode(fp_word(0b0000011, 3, 2, 7, 1), 0).op == Op::INVALID); // fadd.q
+  CHECK(decode(fp_word(0b0101110, 0, 2, 7, 1), 0).op == Op::INVALID); // fsqrt.h
+
+  // cross-format converts: same-format (S->S, D->D) is reserved
+  CHECK(decode(fp_word(0b0100000, 0, 2, 0, 1), 0).op == Op::INVALID);
+  CHECK(decode(fp_word(0b0100001, 1, 2, 0, 1), 0).op == Op::INVALID);
+
+  // rs2 is a fixed sub-opcode for the unary ops — nonzero garbage must fail
+  CHECK(decode(fp_word(0b0101100, 1, 2, 7, 1), 0).op == Op::INVALID); // fsqrt.s
+  CHECK(decode(fp_word(0b1110000, 1, 2, 0, 5), 0).op == Op::INVALID); // fmv.x.w
+  CHECK(decode(fp_word(0b1111000, 1, 6, 0, 1), 0).op == Op::INVALID); // fmv.w.x
+  CHECK(decode(fp_word(0b1100000, 2, 2, 7, 5), 0).op == Op::INVALID); // fcvt.w.s
+  CHECK(decode(fp_word(0b1101000, 2, 6, 7, 1), 0).op == Op::INVALID); // fcvt.s.w
+
+  // funct3 gaps inside valid funct5 groups
+  CHECK(decode(fp_word(0b0010000, 3, 2, 3, 1), 0).op == Op::INVALID); // fsgnj f3=3
+  CHECK(decode(fp_word(0b0010100, 3, 2, 2, 1), 0).op == Op::INVALID); // fmin  f3=2
+  CHECK(decode(fp_word(0b1010000, 3, 2, 3, 5), 0).op == Op::INVALID); // feq   f3=3
+  CHECK(decode(fp_word(0b1110000, 0, 2, 2, 5), 0).op == Op::INVALID); // fclass f3=2
+
+  // funct5 with no instruction assigned in F/D
+  CHECK(decode(fp_word(0b0011000, 3, 2, 0, 1), 0).op == Op::INVALID);
+
+  // LOAD-FP/STORE-FP width gaps: H (001) and Q (100) are not implemented
+  CHECK(decode(fp_word(0, 0, 2, 0b001, 1, 0x07), 0).op == Op::INVALID); // flh
+  CHECK(decode(fp_word(0, 0, 2, 0b100, 1, 0x07), 0).op == Op::INVALID); // flq
+  CHECK(decode(fp_word(0, 2, 3, 0b001, 0, 0x27), 0).op == Op::INVALID); // fsh
+
+  // R4-type with fmt = H: funct7 = rs3<<2 | fmt
+  CHECK(decode(fp_word((4 << 2) | 2, 3, 2, 7, 1, 0x43), 0).op == Op::INVALID);
+  CHECK(decode(fp_word((4 << 2) | 3, 3, 2, 7, 1, 0x4F), 0).op == Op::INVALID);
+}
+
 // ---------------------------------------------------------------- entry
 
 void run_decode_tests() {
@@ -253,4 +427,7 @@ void run_decode_tests() {
   test_system();
   test_strings();
   test_invalid_opcode_throws();
+  test_rv32f();
+  test_rv32d();
+  test_fp_invalid();
 }

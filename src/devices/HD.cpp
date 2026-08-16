@@ -35,11 +35,11 @@ u32 HD::load(u32 addr, BITSIZE size) {
   u8 buf[4] = {};
   file.seekg(addr);
 
-  file.read(reinterpret_cast<char*>(buf), size); // liest evtl weniger als size
+  file.read(reinterpret_cast<char*>(buf), (u8)size); // liest evtl weniger als size
   file.clear(); // eof/fail zurücksetzen  stream bleibt benutzbar
 
   u32 value = 0;
-  for(u32 i=0;i<size;i++){
+  for(u32 i=0;i<(u8)size;i++){
     value |= static_cast<u32>(buf[i]) << (8 * i);
   }
 
@@ -51,12 +51,12 @@ void HD::store(u32 addr, BITSIZE size, u32 value) {
 
   u8 buf[4];
   
-  for(u32 i=0;i<size;i++){
+  for(u32 i=0;i<(u8)size;i++){
     buf[i] = (value >> (8 * i)) & 0xFF; // little endian zerlegen
   } 
 
   file.seekp(addr); // p = put zeiger (nicht seek->g<-)
-  file.write(reinterpret_cast<char*>(buf), size);
+  file.write(reinterpret_cast<char*>(buf), (u8)size);
   file.flush();
 }
 

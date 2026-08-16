@@ -8,19 +8,19 @@ void BUS::addDevice(Device& dev) {
 }
 
 u32 BUS::load(u32 address, BITSIZE size) const {
-
+  
   for(auto& dev : devices){
     u32 start = dev->get_start();
     u32 dev_size = dev->get_size();
 
-    if(start <= address && start + dev_size >= (address + size)){
+    if(start <= address && start + dev_size >= (address + (u8)size)){
       return dev->load(address - start, size);
     }
 
   }
 
   Error<std::out_of_range>(
-      std::format("Address: {:08X} - {:08X} not mapped", address, address + size));
+      std::format("Address: {:08X} - {:08X} not mapped", address, address + (u8)size));
 
   return -1;
 }
@@ -31,7 +31,7 @@ void BUS::store(u32 address, BITSIZE size, u32 value) {
     u32 start = dev->get_start();
     u32 dev_size = dev->get_size();
 
-    if(start <= address && start + dev_size >= (address + size)){
+    if(start <= address && start + dev_size >= (address + (u8)size)){
       dev->store(address - start, size, value);
       return;
     }
@@ -39,7 +39,7 @@ void BUS::store(u32 address, BITSIZE size, u32 value) {
   }
 
   Error<std::out_of_range>(
-      std::format("Address: {:08X} - {:08X} not mapped", address, address + size));
+      std::format("Address: {:08X} - {:08X} not mapped", address, address + (u8)size));
 
 }
 

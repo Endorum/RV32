@@ -12,8 +12,8 @@ void Machine::start() {
 
   // temp!! copy rom content to ram for spike test
   for(int i=0;i<config.rom_size;i++){
-    u8 rom_b = rom.load(i, BYTE);
-    ram.store(i, BYTE, rom_b);
+    u8 rom_b = rom.load(i, BITSIZE::BYTE);
+    ram.store(i, BITSIZE::BYTE, rom_b);
   }
 
   cpu.reset();

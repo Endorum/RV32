@@ -4,7 +4,7 @@ u32 RAM::load(u32 addr, BITSIZE size) {
 
   u32 value = 0;
 
-  for (u32 i = 0; i < size; i++) {
+  for (u32 i = 0; i < (u8)size; i++) {
     u32 address = addr + i;
     u32 page_num = address / PAGE_SIZE;
     u32 page_off = address % PAGE_SIZE;
@@ -32,7 +32,7 @@ u32 RAM::load(u32 addr, BITSIZE size) {
 
 void RAM::store(u32 addr, BITSIZE size, u32 value) {
 
-  for (u32 i = 0; i < size; i++) {
+  for (u32 i = 0; i < (u8)size; i++) {
     u32 address = addr + i;
     u32 page_num = address / PAGE_SIZE;
     u32 page_off = address % PAGE_SIZE;
