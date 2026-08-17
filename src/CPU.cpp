@@ -46,7 +46,8 @@ void CPU::reset(){
 
   // MPP liest ab reset immer 3 (= M-Mode)
   // ACHTUNG: für U Mode muss das wieder geändert werden!
-  csr[(u16)CSR_ADDR::mstatus] = MSTATUS_MPP;
+  // set FS = 11 = dirty
+  csr[(u16)CSR_ADDR::mstatus] = MSTATUS_MPP | MSTATUS_FS;
 
   reservation_valid = false;
   
@@ -71,6 +72,32 @@ void CPU::step(){
   // preload fp registers
   fp_rs1 = get_freg(instr.rs1);
   fp_rs2 = get_freg(instr.rs2);
+
+  // if FS = 00 = off
+  if((get_csr(CSR_ADDR::mstatus) & MSTATUS_FS) == 0){
+    
+    // ... and trying to execute an FP instr. -> trap
+    if(
+      instr.type == BaseType::LOAD_FP ||
+      instr.type == BaseType::STORE_FP ||
+      instr.type == BaseType::FMADD ||
+      instr.type == BaseType::FMSUB ||
+      instr.type == BaseType::FNMSUB ||
+      instr.type == BaseType::FNMADD ||
+      instr.type == BaseType::FP_ALU
+      ){
+      enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+      return;
+    }
+
+    // ... and trying to change the FP status register -> trap
+    if(instr.op >= Op::CSRRW && instr.op <= Op::CSRRCI){
+      if(instr.imm == (u16)CSR_ADDR::fcsr || instr.imm == (u16)CSR_ADDR::fflags || instr.imm == (u16)CSR_ADDR::frm){
+        enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+        return;
+      }
+    }
+  }
 
   // advance one word by default
   pc += 4;
@@ -145,6 +172,8 @@ u32 CPU::get_reg(u8 idx) const {
 }
 
 void CPU::set_freg(u8 idx, u64 val) {
+  csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
+
   fregfile[idx] = val;
 }
 
@@ -243,7 +272,8 @@ u32 CPU::mask(u16 idx) {
     case CSR_ADDR::misa:    return 0x00000000;
     case CSR_ADDR::tselect: return 0x00000000;
 
-    case CSR_ADDR::mstatus: return MSTATUS_MIE | MSTATUS_MPIE; // 0x88
+    case CSR_ADDR::mstatus: 
+      return MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS;
 
 
   }
@@ -253,10 +283,13 @@ void CPU::set_csr(u16 idx, u32 val) {
   const u32 m = mask(idx);
 
   if(idx == (u16)(CSR_ADDR::fflags)){
+    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
     fcsr = (fcsr & ~0x1F) | (val & 0x1F);
   }else if(idx == (u16)(CSR_ADDR::frm)){
+    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
     fcsr = (fcsr & ~0xE0) | ((val & 0x7) << 5);
   }else if(idx == (u16)(CSR_ADDR::fcsr)){
+    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
     fcsr = (fcsr & ~0xFF) | (val & 0xFF);
   }
   
@@ -275,7 +308,11 @@ u32 CPU::get_csr(u16 idx) const {
   }else if(idx == (u16)(CSR_ADDR::fcsr)){
     return fcsr & 0xFF;
   }else if(idx == (u16)(CSR_ADDR::mstatus)){
-    return csr[idx] | (0b11u << 13) | (1u << 31); // FS = Dirty, SD = 1
+    u32 v = csr[idx];
+    if(((v >> 13) & 0b11) == 0b11){ // <=> FS = 0b11 = dirty?
+      v |= (1u << 31); // set SD = 1;
+    }
+    return v; 
   }
 
   else{
@@ -898,7 +935,7 @@ void CPU::execute(const Instruction& instr){
 
       ROUNDING_MODE rm = ROUNDING_MODE::INV;
 
-      if(instr.op == Op::FCVT_W_D && instr.op == Op::FCVT_WU_D) {
+      if(instr.op == Op::FCVT_W_D || instr.op == Op::FCVT_WU_D) {
         rm = get_rm(instr);
         if(rm == ROUNDING_MODE::INV) return;
         fp_begin(rm);
@@ -907,17 +944,35 @@ void CPU::execute(const Instruction& instr){
 
       switch(instr.op){
         default: Error<std::runtime_error>("Invalid op type (should not happen)");
-        case Op::FEQ_D:     result = (f_rs1 == f_rs2) ? 1 : 0; break;
-        case Op::FLT_D:     result = (f_rs1 <  f_rs2) ? 1 : 0; break;
-        case Op::FLE_D:     result = (f_rs1 <= f_rs2) ? 1 : 0; break;
-        case Op::FCLASS_D:  result = alu_classify_d(f_rs1); break;
+        
+        case Op::FEQ_D:     
+          if(is_snan_d(f_rs1) || is_snan_d(f_rs2)) 
+            fcsr |= 0x10; // setting NV flag
+          result = (f_rs1 == f_rs2) ? 1 : 0; 
+          break;
+
+        case Op::FLT_D:     
+          if(std::isnan(f_rs1) || std::isnan(f_rs2)) 
+            fcsr |= 0x10; // setting NV flag
+          result = (f_rs1 <  f_rs2) ? 1 : 0; 
+          break;
+
+        case Op::FLE_D:     
+          if(std::isnan(f_rs1) || std::isnan(f_rs2)) 
+            fcsr |= 0x10; // setting NV flag
+          result = (f_rs1 <= f_rs2) ? 1 : 0; 
+          break;
+
+        case Op::FCLASS_D:
+          result = alu_classify_d(f_rs1); 
+          break;
 
         // fp -> int
         case Op::FCVT_W_D:    result = fcvt_w_d(f_rs1); break;
         case Op::FCVT_WU_D:   result = fcvt_wu_d(f_rs1); break;
       }
 
-      if(instr.op == Op::FCVT_W_D && instr.op == Op::FCVT_WU_D) {
+      if(instr.op == Op::FCVT_W_D || instr.op == Op::FCVT_WU_D) {
         fp_end();
       }
 

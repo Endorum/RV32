@@ -3,7 +3,7 @@
 # Run the official riscv-tests ISA suites (or single tests) against the
 # emulator and print a result table.
 #
-#   tests/run_riscv_tests.sh                     # both suites
+#   tests/run_riscv_tests.sh                     # all suites (RV32G_Zifencei)
 #   tests/run_riscv_tests.sh rv32ui              # one suite
 #   tests/run_riscv_tests.sh rv32mi-p-mcsr       # a single test
 #   tests/run_riscv_tests.sh rv32ui rv32mi-p-csr # mix is fine
@@ -38,7 +38,7 @@ SKIP_LIST=" rv32mi-p-breakpoint rv32mi-p-instret_overflow "
 
 # resolve args (suites or single test names) into a list of ELF paths
 elfs=()
-for arg in "${@:-rv32ui rv32um rv32ua rv32mi}"; do
+for arg in "${@:-rv32ui rv32um rv32ua rv32uf rv32ud rv32mi}"; do
   # shellcheck disable=SC2086
   for word in $arg; do
     if [ -f "$ISA_DIR/$word" ]; then

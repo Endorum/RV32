@@ -1669,6 +1669,54 @@ static void test_minmax_snan_flags() {
   });
 }
 
+// ------------------------------------------------------- mstatus.FS gating
+//
+// FS=Off must make FP instructions trap (illegal instruction) with NO side
+// effects; re-enabling FS makes them work; an FP register write drives FS
+// from Initial to Dirty (and SD along with it).
+
+static void test_fs_off_gates_fp() {
+  guarded("mstatus.FS", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40      handler
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x3F8002B7, // 0x08: lui t0, 0x3F800        1.0f
+      0x30502023, // 0x0C: sw t0, 0x300(x0)
+      0x30002087, // 0x10: flw ft1, 0x300(x0)     (FS is Dirty after reset)
+      0x00100293, // 0x14: addi t0, x0, 1
+      0x30502223, // 0x18: sw t0, 0x304(x0)       sentinel at target
+      0x000062B7, // 0x1C: lui t0, 0x6            FS mask (bits 14:13)
+      0x3002B073, // 0x20: csrc mstatus, t0       FS = Off
+      0x30102227, // 0x24: fsw ft1, 0x304(x0)     must TRAP, not store
+      0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x00000013, 0x00000013, 0x00000013,
+      0x342023F3, // 0x40: csrr t2, mcause
+      0x20702023, // 0x44: sw t2, 0x200(x0)       RESULT0 = mcause
+      0x30402383, // 0x48: lw t2, 0x304(x0)
+      0x20702223, // 0x4C: sw t2, 0x204(x0)       RESULT1 = sentinel intact?
+      0x000062B7, // 0x50: lui t0, 0x6
+      0x3002A073, // 0x54: csrs mstatus, t0       FS = Dirty again
+      0x30102227, // 0x58: fsw ft1, 0x304(x0)     now allowed
+      0x30402383, // 0x5C: lw t2, 0x304(x0)
+      0x20702423, // 0x60: sw t2, 0x208(x0)       RESULT2 = stored float
+      0x000062B7, // 0x64: lui t0, 0x6
+      0x3002B073, // 0x68: csrc mstatus, t0       FS = Off
+      0x000022B7, // 0x6C: lui t0, 0x2            bit 13 only
+      0x3002A073, // 0x70: csrs mstatus, t0       FS = Initial (01)
+      0x30402087, // 0x74: flw ft1, 0x304(x0)     FP reg write -> FS = Dirty
+      0x300023F3, // 0x78: csrr t2, mstatus
+      0x20702623, // 0x7C: sw t2, 0x20C(x0)       RESULT3 = mstatus
+    }, 26);
+    CHECK_EQ(bus.load(0x200, WORD), 2);          // illegal instruction
+    CHECK_EQ(bus.load(0x204, WORD), 1);          // fsw had NO memory effect
+    CHECK_EQ(bus.load(0x208, WORD), 0x3F800000); // works with FS on
+    // MPP=3 | FS=Dirty (hardware-set by the flw) | SD computed from FS
+    CHECK_EQ(bus.load(0x20C, WORD), 0x80007800);
+  });
+}
+
 // ---------------------------------------------------------------- entry
 
 void run_cpu_tests() {
@@ -1735,4 +1783,5 @@ void run_cpu_tests() {
   test_reserved_rm_traps_no_rd_write();
   test_dyn_rm_invalid_frm_traps();
   test_minmax_snan_flags();
+  test_fs_off_gates_fp();
 }

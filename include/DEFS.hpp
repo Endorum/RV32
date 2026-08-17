@@ -142,10 +142,10 @@ enum class CSR_ADDR : u16
 
 
 // csr stuff
-#define MSTATUS_MIE (1u << 3)
+#define MSTATUS_MIE (1u << 3) 
 #define MSTATUS_MPIE (1u << 7)
 #define MSTATUS_MPP (3u << 11)
-
+#define MSTATUS_FS (3u << 13)
 
 #define NAN_S 0x7FC00000
 #define NAN_D 0x7FF8000000000000
