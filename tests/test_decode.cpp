@@ -217,6 +217,27 @@ static void test_system() {
   CHECK(decode(0x30200073, 0).mnemonic == "mret");
 }
 
+// ----------------------------------------------------- fence / Zifencei
+
+static void test_fence() {
+  // plain fence with various pred/succ sets — rs1/rd are reserved fields
+  CHECK(decode(0x0FF0000F, 0).op == Op::FENCE);    // fence iorw, iorw
+  CHECK(decode(0x0330000F, 0).op == Op::FENCE);    // fence rw, rw
+
+  // fence.tso: fm (bits 31:28) = 1000, pred = succ = rw
+  CHECK(decode(0x8330000F, 0).op == Op::FENCE_TSO);
+
+  // reserved fm values must decode as a conservative plain FENCE, not
+  // INVALID — the spec requires this for forward compatibility
+  CHECK(decode(0x4330000F, 0).op == Op::FENCE);
+
+  // Zifencei: funct3 = 001
+  CHECK(decode(0x0000100F, 0).op == Op::FENCE_I);  // fence.i
+
+  // funct3 gaps in the FENCE opcode
+  CHECK(decode(0x0000200F, 0).op == Op::INVALID);
+}
+
 // -------------------------------------------------- mnemonic / disassembly
 
 static void test_strings() {
@@ -425,6 +446,7 @@ void run_decode_tests() {
   test_branches();
   test_loads_stores();
   test_system();
+  test_fence();
   test_strings();
   test_invalid_opcode_throws();
   test_rv32f();

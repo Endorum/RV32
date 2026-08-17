@@ -525,10 +525,10 @@ static void test_mstatus_push_pop() {
       0x34139073, // 0x50: csrw mepc, t2
       0x30200073, // 0x54: mret                  -> 0x10
     }, 12);
-    // in handler: MIE(3)=0, MPIE(7)=1, MPP(12:11)=3 -> 0x1880
-    CHECK_EQ(bus.load(RESULT0, WORD), 0x1880);
-    // after mret: MIE restored to 1, MPIE=1, MPP stays M -> 0x1888
-    CHECK_EQ(bus.load(RESULT2, WORD), 0x1888);
+    // in handler: MIE(3)=0, MPIE(7)=1, MPP=3, plus hardwired FS=11|SD
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x80007880);
+    // after mret: MIE restored to 1, MPIE=1, MPP stays M
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x80007888);
   });
 }
 
@@ -549,9 +549,10 @@ static void test_reset_csr_values() {
       0x20702223, // sw    t2, 0x204(x0)      RESULT1 = misa after write
     }, 8);
     // update deliberately when the machine grows an extension!
-    CHECK_EQ(bus.load(RESULT0, WORD), 0x40001101); // MXL=1 (RV32) | I | M | A
-    CHECK_EQ(bus.load(RESULT1, WORD), 0x40001101); // unchanged: read-only
-    CHECK_EQ(bus.load(RESULT2, WORD), 0x00001800); // MPP=3, rest clear
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x40001129); // MXL=1 (RV32) | I|M|A|F|D
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x40001129); // unchanged: read-only
+    // MPP=3 | FS=Dirty(11)<<13 | SD(31) — FS/SD hardwired since F/D landed
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x80007800);
   });
 }
 
@@ -665,6 +666,23 @@ static void test_amoswap_touches_only_rd_and_mem() {
     CHECK_EQ(bus.load(RESULT0, WORD), 0xAA);
     CHECK_EQ(bus.load(RESULT1, WORD), 0xBB);
     CHECK_EQ(bus.load(RESULT2, WORD), 0xBB);
+  });
+}
+
+static void test_fence_variants_are_nops() {
+  // no caches, no other harts: all three fences complete as nops and
+  // execution continues
+  guarded("fence nops", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x0FF0000F, // fence iorw, iorw
+      0x0000100F, // fence.i  (Zifencei)
+      0x8330000F, // fence.tso
+      0x02A00313, // addi t1, x0, 42
+      0x20602023, // sw   t1, 0x200(x0)
+    }, 5);
+    CHECK_EQ(bus.load(RESULT0, WORD), 42);
   });
 }
 
@@ -1333,6 +1351,324 @@ static void test_fp_d_cvt_from_int() {
   });
 }
 
+// ------------------------------------------------ fcsr / fflags / frm views
+//
+// One 8-bit register (frm[7:5] | fflags[4:0]) behind three CSR addresses.
+// frm reads UNSHIFTED (0..7 at bits 2:0); each view's write must leave the
+// other field untouched; fcsr's reserved upper bits must not stick.
+
+static void test_fcsr_views() {
+  guarded("fcsr views", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x0FF00293, // addi  t0, x0, 0xFF
+      0x00329073, // csrw  fcsr, t0        fcsr = 0xFF (frm=7, fflags=0x1F)
+      0x00102373, // csrr  t1, fflags
+      0x20602023, // sw    t1, 0x200(x0)   expect 0x1F
+      0x00202373, // csrr  t1, frm
+      0x20602223, // sw    t1, 0x204(x0)   expect 7 (unshifted!)
+      0x0020D073, // csrwi frm, 1          only bits 7:5 change
+      0x00302373, // csrr  t1, fcsr
+      0x20602423, // sw    t1, 0x208(x0)   expect (1<<5)|0x1F = 0x3F
+      0x00105073, // csrwi fflags, 0       only bits 4:0 change
+      0x00302373, // csrr  t1, fcsr
+      0x20602623, // sw    t1, 0x20C(x0)   expect 1<<5 = 0x20
+      0xFFFFF2B7, // lui   t0, 0xFFFFF     reserved-bits probe
+      0x00329073, // csrw  fcsr, t0        only low byte may stick
+      0x00302373, // csrr  t1, fcsr
+      0x20602823, // sw    t1, 0x210(x0)   expect 0xFFFFF000 & 0xFF = 0
+    }, 16);
+    CHECK_EQ(bus.load(0x200, WORD), 0x1F);
+    CHECK_EQ(bus.load(0x204, WORD), 0x07);
+    CHECK_EQ(bus.load(0x208, WORD), 0x3F);
+    CHECK_EQ(bus.load(0x20C, WORD), 0x20);
+    CHECK_EQ(bus.load(0x210, WORD), 0x00);
+  });
+}
+
+// -------------------------------------------------- NaN canonicalization
+//
+// RISC-V arithmetic never propagates NaN payloads: any NaN result reads
+// exactly 0x7FC00000 / 0x7FF8000000000000. Inputs here are sNaNs with
+// payload 1 — a host that propagates would produce 0x7FC00001 instead.
+
+static void test_nan_canonicalization() {
+  guarded("canonical NaN", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x7F8002B7, 0x00128293, // t0 = 0x7F800001 (sNaN, payload 1)
+      0x30502023, 0x30002087, // -> 0x300; flw ft1
+      0x3F8002B7, 0x30502223, // 1.0f -> 0x304
+      0x30402107,             // flw ft2
+      0x0020F1D3, 0x20302027, // fadd.s  ft3,ft1,ft2 ; fsw 0x200
+      0x1020F1D3, 0x20302227, // fmul.s  ft3,ft1,ft2 ; fsw 0x204
+      0x1020F1C3, 0x20302427, // fmadd.s ft3,ft1,ft2,ft2 ; fsw 0x208
+      0x00100293, 0x30502423, // low word 1 -> 0x308
+      0x7FF002B7, 0x30502623, // sNaN.d 0x7FF00000_00000001 -> 0x308
+      0x30803087,             // fld ft1
+      0x30002823,             // low 0 -> 0x310
+      0x3FF002B7, 0x30502A23, // 1.0 -> 0x310
+      0x31003107,             // fld ft2
+      0x0220F1D3, 0x20303827, // fadd.d ft3,ft1,ft2 ; fsd 0x210
+      0x4010F253, 0x20402C27, // fcvt.s.d ft4,ft1 ; fsw 0x218
+    }, 26);
+    CHECK_EQ(bus.load(0x200, WORD), 0x7FC00000); // fadd.s
+    CHECK_EQ(bus.load(0x204, WORD), 0x7FC00000); // fmul.s
+    CHECK_EQ(bus.load(0x208, WORD), 0x7FC00000); // fmadd.s
+    CHECK_EQ(bus.load(0x210, WORD), 0);          // fadd.d -> canonical
+    CHECK_EQ(bus.load(0x214, WORD), 0x7FF80000);
+    CHECK_EQ(bus.load(0x218, WORD), 0x7FC00000); // fcvt.s.d of a NaN
+  });
+}
+
+// ------------------------------------------------- fflags / rounding modes
+//
+// The cfenv layer: every flag provoked in isolation and read back through
+// csrr fflags, accumulation semantics, static and dynamic rm, exact flag
+// values from the converts, and the reserved-rm illegal-instruction trap
+// (which must leave rd untouched).
+
+static void test_fflags_each_flag() {
+  guarded("fflags provoke", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x3F8002B7, 0x30502023, // 1.0f -> 0x300
+      0x30002223,             // 0.0f -> 0x304
+      0x30002087, 0x30402107, // flw ft1, ft2
+      0x00105073,             // csrwi fflags, 0
+      0x1820F1D3,             // fdiv.s (1/0)
+      0x00102373, 0x20602023, // csrr t1, fflags ; sw 0x200
+      0x404002B7, 0x30502223, // 3.0f -> 0x304
+      0x30402107,             // flw ft2
+      0x00105073,             // clear
+      0x1820F1D3,             // fdiv.s (1/3)
+      0x00102373, 0x20602223, // fflags -> 0x204
+      0x7F8002B7, 0xFFF28293, // FLT_MAX = 0x7F7FFFFF
+      0x30502023, 0x30002087, // -> 0x300 ; flw ft1
+      0x400002B7, 0x30502223, // 2.0f -> 0x304
+      0x30402107,             // flw ft2
+      0x00105073,             // clear
+      0x1020F1D3,             // fmul.s (overflow)
+      0x00102373, 0x20602423, // fflags -> 0x208
+      0x008002B7, 0x30502023, // FLT_MIN (0x00800000) -> 0x300
+      0x30002087,             // flw ft1
+      0x404002B7, 0x30502223, // 3.0f -> 0x304
+      0x30402107,             // flw ft2
+      0x00105073,             // clear
+      0x1820F1D3,             // fdiv.s (subnormal result)
+      0x00102373, 0x20602623, // fflags -> 0x20C
+      0x7F8002B7, 0x00128293, // sNaN 0x7F800001
+      0x30502023, 0x30002087, // -> 0x300 ; flw ft1
+      0x3F8002B7, 0x30502223, // 1.0f -> 0x304
+      0x30402107,             // flw ft2
+      0x00105073,             // clear
+      0x0020F1D3,             // fadd.s (sNaN operand)
+      0x00102373, 0x20602823, // fflags -> 0x210
+    }, 48);
+    CHECK_EQ(bus.load(0x200, WORD), 0x08); // DZ
+    CHECK_EQ(bus.load(0x204, WORD), 0x01); // NX
+    CHECK_EQ(bus.load(0x208, WORD), 0x05); // OF|NX
+    CHECK_EQ(bus.load(0x20C, WORD), 0x03); // UF|NX
+    CHECK_EQ(bus.load(0x210, WORD), 0x10); // NV
+  });
+}
+
+static void test_fflags_accumulate_and_clear() {
+  // flags only ever accumulate; only a CSR write clears them
+  guarded("fflags accumulate", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x00105073,             // csrwi fflags, 0
+      0x3F8002B7, 0x30502023, // 1.0f
+      0x30002087,             // flw ft1
+      0x30002223, 0x30402107, // 0.0f ; flw ft2
+      0x1820F1D3,             // fdiv.s -> DZ
+      0x404002B7, 0x30502223, // 3.0f
+      0x30402107,             // flw ft2
+      0x1820F1D3,             // fdiv.s -> NX on top
+      0x00102373, 0x20602023, // fflags -> 0x200 (DZ|NX)
+      0x00105073,             // csrwi fflags, 0
+      0x00102373, 0x20602223, // fflags -> 0x204 (clean)
+    }, 16);
+    CHECK_EQ(bus.load(0x200, WORD), 0x09); // DZ|NX accumulated
+    CHECK_EQ(bus.load(0x204, WORD), 0x00); // write cleared
+  });
+}
+
+static void test_rounding_modes() {
+  guarded("rounding modes", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x402002B7, 0x30502023, // 2.5f -> 0x300
+      0x30002087,             // flw ft1
+      0xC0008353, 0x20602023, // fcvt.w.s rne -> 0x200
+      0xC0009353, 0x20602223, // fcvt.w.s rtz -> 0x204
+      0xC000B353, 0x20602423, // fcvt.w.s rup -> 0x208
+      0xC000A353, 0x20602623, // fcvt.w.s rdn -> 0x20C
+      0xC02002B7, 0x30502023, // -2.5f
+      0x30002087,             // flw ft1
+      0xC000A353, 0x20602823, // fcvt.w.s rdn -> 0x210
+      0x0021D073,             // csrwi frm, 3 (RUP)
+      0x402002B7, 0x30502023, // 2.5f
+      0x30002087,             // flw ft1
+      0xC000F353, 0x20602A23, // fcvt.w.s DYN -> 0x214
+      0x00205073,             // csrwi frm, 0
+      0x3F8002B7, 0x30502023, // 1.0f
+      0x30002087,             // flw ft1
+      0x338002B7, 0x30502223, // 2^-24
+      0x30402107,             // flw ft2
+      0x0020B1D3, 0x20302C27, // fadd.s rup ; fsw 0x218
+      0x0020F1D3, 0x20302E27, // fadd.s dyn (frm=RNE) ; fsw 0x21C
+    }, 33);
+    CHECK_EQ(bus.load(0x200, WORD), 2);          // RNE: tie to even
+    CHECK_EQ(bus.load(0x204, WORD), 2);          // RTZ
+    CHECK_EQ(bus.load(0x208, WORD), 3);          // RUP
+    CHECK_EQ(bus.load(0x20C, WORD), 2);          // RDN
+    CHECK_EQ(bus.load(0x210, WORD), 0xFFFFFFFD); // RDN(-2.5) = -3
+    CHECK_EQ(bus.load(0x214, WORD), 3);          // DYN with frm=RUP
+    CHECK_EQ(bus.load(0x218, WORD), 0x3F800001); // 1+2^-24 rounds up under RUP
+    CHECK_EQ(bus.load(0x21C, WORD), 0x3F800000); // ... and away under RNE
+  });
+}
+
+static void test_fcvt_flag_exactness() {
+  // riscv-tests compares fflags EXACTLY: out-of-range must be NV alone
+  // (llrint's pending NX discarded), in-range inexact must be NX alone
+  guarded("fcvt flags", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x4F0002B7, 0x30502023, // 2^31 as float
+      0x30002087,             // flw ft1
+      0x00105073,             // clear fflags
+      0xC000F353,             // fcvt.w.s (saturates)
+      0x001023F3, 0x20702023, // fflags -> 0x200
+      0x402002B7, 0x30502023, // 2.5f
+      0x30002087,             // flw ft1
+      0x00105073,             // clear
+      0xC0009353,             // fcvt.w.s rtz (inexact, valid)
+      0x001023F3, 0x20702223, // fflags -> 0x204
+      0xBF3332B7, 0x33328293, // -0.7f = 0xBF333333
+      0x30502023, 0x30002087, // -> 0x300 ; flw ft1
+      0x00105073,             // clear
+      0xC0109353, 0x20602423, // fcvt.wu.s rtz -> 0x208 (rounds to 0: VALID)
+      0x001023F3, 0x20702623, // fflags -> 0x20C
+      0x00105073,             // clear
+      0xC010A353, 0x20602823, // fcvt.wu.s rdn -> 0x210 (rounds to -1: sat)
+      0x001023F3, 0x20702A23, // fflags -> 0x214
+    }, 28);
+    CHECK_EQ(bus.load(0x200, WORD), 0x10); // exactly NV, no NX
+    CHECK_EQ(bus.load(0x204, WORD), 0x01); // exactly NX
+    CHECK_EQ(bus.load(0x208, WORD), 0);    // wu.rtz(-0.7) = 0, valid
+    CHECK_EQ(bus.load(0x20C, WORD), 0x01); // ... with NX only
+    CHECK_EQ(bus.load(0x210, WORD), 0);    // wu.rdn(-0.7) saturates to 0
+    CHECK_EQ(bus.load(0x214, WORD), 0x10); // ... with NV only
+  });
+}
+
+static void test_reserved_rm_traps_no_rd_write() {
+  // fadd.s with static rm=101: illegal instruction (mcause 2), mepc points
+  // at it, and the DESTINATION register keeps its sentinel — a trapping
+  // instruction has no side effects
+  guarded("reserved rm trap", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40    handler
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x3F8002B7, // 0x08: lui t0, 0x3F800      1.0f
+      0x30502023, // 0x0C: sw t0, 0x300(x0)
+      0x30002087, // 0x10: flw ft1, 0x300(x0)
+      0x400002B7, // 0x14: lui t0, 0x40000      2.0f sentinel
+      0x30502223, // 0x18: sw t0, 0x304(x0)
+      0x30402187, // 0x1C: flw ft3, 0x304(x0)   sentinel into DEST reg
+      0x0010D1D3, // 0x20: fadd.s ft3,ft1,ft1 with rm=101 -> must trap
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x00000013, 0x00000013, 0x00000013,
+      0x342023F3, // 0x40: csrr t2, mcause
+      0x20702223, // 0x44: sw t2, 0x204(x0)
+      0x20302027, // 0x48: fsw ft3, 0x200(x0)   sentinel must survive
+      0x341023F3, // 0x4C: csrr t2, mepc
+      0x20702423, // 0x50: sw t2, 0x208(x0)
+    }, 14);
+    CHECK_EQ(bus.load(0x204, WORD), 2);          // illegal instruction
+    CHECK_EQ(bus.load(0x200, WORD), 0x40000000); // rd NOT written
+    CHECK_EQ(bus.load(0x208, WORD), 0x20);       // mepc = the fadd itself
+  });
+}
+
+static void test_dyn_rm_invalid_frm_traps() {
+  // rm=DYN with frm set to a reserved value must also be illegal
+  guarded("dyn bad frm trap", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x0022D073, // 0x08: csrwi frm, 5         reserved frm
+      0x3F8002B7, // 0x0C: lui t0, 0x3F800
+      0x30502023, // 0x10: sw t0, 0x300(x0)
+      0x30002087, // 0x14: flw ft1, 0x300(x0)
+      0x0010F1D3, // 0x18: fadd.s ft3,ft1,ft1 (rm=dyn) -> trap
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop padding
+      0x342023F3, // 0x40: csrr t2, mcause
+      0x20702023, // 0x44: sw t2, 0x200(x0)
+    }, 9);
+    CHECK_EQ(bus.load(0x200, WORD), 2); // illegal instruction
+  });
+}
+
+// ------------------------------------------------- fmin/fmax NaN flags
+//
+// min/max are QUIET for qNaN inputs (no flag, return the other operand)
+// but a SIGNALING NaN input raises NV — in both widths.
+
+static void test_minmax_snan_flags() {
+  guarded("minmax NV", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x7FC002B7, 0x30502023, // qNaN -> 0x300
+      0x30002087,             // flw ft1
+      0x3F8002B7, 0x30502223, // 1.0f -> 0x304
+      0x30402107,             // flw ft2
+      0x00105073,             // clear fflags
+      0x282081D3,             // fmin.s (qNaN, 1.0) — quiet
+      0x00102373, 0x20602023, // fflags -> 0x200: expect 0
+      0x7F8002B7, 0x00128293, // sNaN 0x7F800001
+      0x30502023, 0x30002087, // -> 0x300 ; flw ft1
+      0x00105073,             // clear
+      0x282091D3,             // fmax.s (sNaN, 1.0) — signals
+      0x00102373, 0x20602223, // fflags -> 0x204: expect NV
+      0x00100293, 0x30502423, // low word 1 -> 0x308
+      0x7FF002B7, 0x30502623, // sNaN.d 0x7FF00000_00000001
+      0x30803087,             // fld ft1
+      0x30002823,             // low 0 -> 0x310
+      0x3FF002B7, 0x30502A23, // 1.0 -> 0x310
+      0x31003107,             // fld ft2
+      0x00105073,             // clear
+      0x2A2081D3,             // fmin.d (sNaN, 1.0) — signals
+      0x00102373, 0x20602423, // fflags -> 0x208: expect NV
+      0x30002423,             // low 0 -> 0x308
+      0x7FF802B7, 0x30502623, // qNaN.d -> 0x308
+      0x30803087,             // fld ft1
+      0x00105073,             // clear
+      0x2A2091D3,             // fmax.d (qNaN, 1.0) — quiet
+      0x00102373, 0x20602623, // fflags -> 0x20C: expect 0
+    }, 39);
+    CHECK_EQ(bus.load(0x200, WORD), 0x00); // fmin.s qNaN: no flag
+    CHECK_EQ(bus.load(0x204, WORD), 0x10); // fmax.s sNaN: NV
+    CHECK_EQ(bus.load(0x208, WORD), 0x10); // fmin.d sNaN: NV
+    CHECK_EQ(bus.load(0x20C, WORD), 0x00); // fmax.d qNaN: no flag
+  });
+}
+
 // ---------------------------------------------------------------- entry
 
 void run_cpu_tests() {
@@ -1366,6 +1702,7 @@ void run_cpu_tests() {
   test_lr_sc_pair_and_consumption();
   test_sc_wrong_address_fails();
   test_amoswap_touches_only_rd_and_mem();
+  test_fence_variants_are_nops();
   test_wfi_is_nop();
   test_flw_nan_boxing();
   test_fld_fsd_word_order();
@@ -1389,4 +1726,13 @@ void run_cpu_tests() {
   test_fp_d_fclass();
   test_fp_d_cvt_to_int();
   test_fp_d_cvt_from_int();
+  test_fcsr_views();
+  test_nan_canonicalization();
+  test_fflags_each_flag();
+  test_fflags_accumulate_and_clear();
+  test_rounding_modes();
+  test_fcvt_flag_exactness();
+  test_reserved_rm_traps_no_rd_write();
+  test_dyn_rm_invalid_frm_traps();
+  test_minmax_snan_flags();
 }

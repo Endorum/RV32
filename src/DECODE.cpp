@@ -162,7 +162,14 @@ Op get_op(const Instruction& instr){
       return Op::AUIPC;
 
     case BaseType::FENCE:
-      return Op::FENCE;
+      
+      if(instr.funct3 == 0b000){
+        if(instr.fm == 0b1000) return Op::FENCE_TSO;
+        return Op::FENCE;
+      }
+
+      if(instr.funct3 == 0b001) return Op::FENCE_I;
+      return Op::INVALID;
 
     case BaseType::SYSTEM:{
       if(instr.funct3 == 0x0){
@@ -340,6 +347,7 @@ std::string get_mnemonic(const Op& op){
     case Op::OR: return "or";
     case Op::AND: return "and";
     case Op::FENCE: return "fence";
+    case Op::FENCE_TSO: return "fence.tso";
     case Op::ECALL: return "ecall";
     case Op::EBREAK: return "ebreak";
 
@@ -430,6 +438,9 @@ std::string get_mnemonic(const Op& op){
     case Op::FCVT_D_W: return "fcvt.d.w";
     case Op::FCVT_D_WU: return "fcvt.d.wu";
 
+    /* RV32 Zifencei Standard Extension */
+    case Op::FENCE_I: return "fence.i";
+
     /* Other */
     case Op::WFI: return "wfi";
     case Op::MRET: return "mret";
@@ -468,7 +479,10 @@ Instruction decode(u32 word, u32 addr) {
   // for F/D ext.
   instr.funct5 = (instr.funct7 & ~0x3) >> 2;
   instr.width = (PREC)(instr.funct7 & 0x3);
-  instr.rm = (ROUNDING_MODE)(instr.funct3);
+  instr.rm = instr.funct3;
+
+  // for FENCE
+  instr.fm = extract_bits(instr.word, 28, 31);
 
   instr.type = get_type(instr.opcode);
   

@@ -50,6 +50,7 @@ enum class Op
   OR,
   AND,
   FENCE,
+  FENCE_TSO,
   ECALL,
   EBREAK,
 
@@ -140,6 +141,8 @@ enum class Op
   FCVT_D_W,
   FCVT_D_WU,
 
+  /* RV32 Zifencei Standard Extension */
+  FENCE_I,
 
   /* Other */
   WFI,
@@ -209,7 +212,8 @@ typedef struct Instruction{
   // 0b11 = Q = Quad   = 128 Bit
   PREC width;   // (f7 & 0x3)
   u8 funct5;    // ((f7 & ~0x3) >> 2)
-  ROUNDING_MODE rm;
+  u8 rm; // = f3 
+  u8 fm;
 
   bool aq;
   bool rl;

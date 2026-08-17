@@ -54,12 +54,13 @@ enum class FCSR_FLAG : u32 {
 };
 
 enum class ROUNDING_MODE : u8 {
-  RNE = 0b000, // Round to nearest, ties to even
-  RTZ = 0b001, // Round towards Zero
-  RDN = 0b010, // Round Down (towards -\infty)
-  RUP = 0b011, // Round Up (towards +\infty)
-  RMM = 0b100, // Round to Nearest, ties to Max Magnitude
-  DYN = 0b111, // In Instr.'s ->rm<- Field, selects dynamic rounding mode
+  INV, // invalid
+  RNE, // Round to nearest, ties to even
+  RTZ, // Round towards Zero
+  RDN, // Round Down (towards -\infty)
+  RUP, // Round Up (towards +\infty)
+  RMM, // Round to Nearest, ties to Max Magnitude
+  DYN, // In Instr.'s ->rm<- Field, selects dynamic rounding mode
 };
 
 enum class BITSIZE
@@ -120,7 +121,7 @@ typedef enum
 // csr register addresses
 enum class CSR_ADDR : u16
 {
-  fflags = 0x000, frm = 0x001, fcsr = 0x002, vstart = 0x008, vxsat = 0x009, vxrm = 0x00A, vcsr = 0x00F, ssp = 0x011, seed = 0x015, jvt = 0x017, sstatus = 0x100, sie = 0x101, stvec = 0x102, scounteren = 0x103, senvcfg = 0x10A, sstateen0 = 0x10C,
+  fflags = 0x001, frm = 0x002, fcsr = 0x003, vstart = 0x008, vxsat = 0x009, vxrm = 0x00A, vcsr = 0x00F, ssp = 0x011, seed = 0x015, jvt = 0x017, sstatus = 0x100, sie = 0x101, stvec = 0x102, scounteren = 0x103, senvcfg = 0x10A, sstateen0 = 0x10C,
   sstateen1 = 0x10D, sstateen2 = 0x10E, sstateen3 = 0x10F, scountinhibit = 0x120, sscratch = 0x140, sepc = 0x141, scause = 0x142, stval = 0x143, sip = 0x144, satp = 0x180, vsstatus = 0x200, vsie = 0x204, vstvec = 0x205, vsscratch = 0x240, vsepc = 0x241, vscause = 0x242,
   vstval = 0x243, vsip = 0x244, vsatp = 0x280, mstatus = 0x300, misa = 0x301, medeleg = 0x302, mideleg = 0x303, mie = 0x304, mtvec = 0x305, mcounteren = 0x306, menvcfg = 0x30A, mstateen0 = 0x30C, mstateen1 = 0x30D, mstateen2 = 0x30E, mstateen3 = 0x30F, mstatush = 0x310,
   medelegh = 0x312, menvcfgh = 0x31A, mstateen0h = 0x31C, mstateen1h = 0x31D, mstateen2h = 0x31E, mstateen3h = 0x31F, mcountinhibit = 0x320, mhpmevent3 = 0x323, mhpmevent4 = 0x324, mhpmevent5 = 0x325, mhpmevent6 = 0x326, mhpmevent7 = 0x327, mhpmevent8 = 0x328, mhpmevent9 = 0x329, mhpmevent10 = 0x32A, mhpmevent11 = 0x32B,
@@ -146,7 +147,8 @@ enum class CSR_ADDR : u16
 #define MSTATUS_MPP (3u << 11)
 
 
-
+#define NAN_S 0x7FC00000
+#define NAN_D 0x7FF8000000000000
 
 #endif // DEFS_HPP
 

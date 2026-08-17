@@ -56,6 +56,7 @@ private:
   u32 rs1_value;
   u32 rs2_value;
 
+  // rv32f/d
   u64 fp_rs1; 
   u64 fp_rs2;
 
@@ -64,13 +65,17 @@ private:
 
   void set_freg(u8 idx, u64 val);
   u64  get_freg(u8 idx);
-  u64  get_freg_s(u8 idx);
+  u32  get_freg_s(u8 idx);
 
   void set_fcsr(u32 val);
   u32 get_fcsr();
 
-  void set_rounding_mode(u8 mode);
-  u8 get_rounding_mode();
+  ROUNDING_MODE get_rm(const Instruction& instr);
+  
+  void fp_begin(ROUNDING_MODE mode);
+  void fp_end();
+
+  
 
 
   // mask for allowing and blocking csr writes
@@ -109,6 +114,10 @@ private:
   float alu_fmin_s(float a, float b);
   float alu_fmax_s(float a, float b);
 
+  float canon_nan_s(float in);
+
+  bool is_snan_s(float f);
+
   // RV32D
   u64 alu_classify_d(double v);
   i64 fcvt_w_d(double v);
@@ -117,6 +126,9 @@ private:
   double alu_fmin_d(double a, double b);
   double alu_fmax_d(double a, double b);
 
+  double canon_nan_d(double in);
+
+  bool is_snan_d(double d);
 
   void enter_trap(u32 trap_addr, TRAP_CODE code, u32 tval);
   void mret();
