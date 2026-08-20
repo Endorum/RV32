@@ -29,7 +29,8 @@ void CPU::reset(){
   // clear fcsr
   fcsr = 0x0;
 
-  cycle = 0;
+  // done in csr = 0x00000000 already
+  // cycle = 0;
 
 
   // start at reset vector (start of ROM / firmware as of right now)
@@ -37,7 +38,7 @@ void CPU::reset(){
 
   // Loading the extension and arch infos
   csr[(u16)CSR_ADDR::misa] = 
-    MISA_XLEN_32 | 
+    MISA_MXL_RV32 |
     MISA_EXT_I | 
     MISA_EXT_M |
     MISA_EXT_A |
@@ -47,7 +48,7 @@ void CPU::reset(){
   // MPP liest ab reset immer 3 (= M-Mode)
   // ACHTUNG: für U Mode muss das wieder geändert werden!
   // set FS = 11 = dirty
-  csr[(u16)CSR_ADDR::mstatus] = MSTATUS_MPP | MSTATUS_FS;
+  csr[(u16)CSR_ADDR::mstatus] = MSTATUS_MPP_MASK | MSTATUS_FS_DIRTY;
 
   reservation_valid = false;
   
@@ -55,8 +56,35 @@ void CPU::reset(){
 
 void CPU::step(){
 
+  // wake up if interrupt
+  if (sleeping){
+    if((clint->pending_mip() & get_csr(CSR_ADDR::mie)) != 0){
+      sleeping = false;
+      // continue with normal execution
+    }
+    else {
+      // the CPU is "sleeping", it skips the decoding and waits until mtime >= mtimecmp
+      // to wakeup
+      // vvv count cycles while sleeping too!
+      set_csr(CSR_ADDR::mcycle, get_csr(CSR_ADDR::mcycle) + 1 );
+      return; 
+    } 
+  }
+
+  // check for clint interrupts
+  u32 mip = clint->pending_mip();
+  u32 pending = mip & get_csr(CSR_ADDR::mie);
+  if((get_csr(CSR_ADDR::mstatus) & MSTATUS_MIE) && pending){
+
+    // software (Bit 3) has priority before timer (Bit 7)
+    if(pending & MIP_MSIP)      enter_interrupt(pc, INTERRUPT_CODE::MACH_SOFTWARE_INT);
+    else if(pending & MIP_MTIP) enter_interrupt(pc, INTERRUPT_CODE::MACH_TIMER_INT);
+
+    return;
+  }
+
   // fetch...
-  u32 word = load(pc, BITSIZE::WORD);
+  u32 word = load(pc, WORD);
 
   // ...decode...
   Instruction instr = decode(word, pc);
@@ -74,7 +102,7 @@ void CPU::step(){
   fp_rs2 = get_freg(instr.rs2);
 
   // if FS = 00 = off
-  if((get_csr(CSR_ADDR::mstatus) & MSTATUS_FS) == 0){
+  if((get_csr(CSR_ADDR::mstatus) & MSTATUS_FS_MASK) == MSTATUS_FS_OFF){
     
     // ... and trying to execute an FP instr. -> trap
     if(
@@ -86,14 +114,14 @@ void CPU::step(){
       instr.type == BaseType::FNMADD ||
       instr.type == BaseType::FP_ALU
       ){
-      enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+      enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
       return;
     }
 
     // ... and trying to change the FP status register -> trap
     if(instr.op >= Op::CSRRW && instr.op <= Op::CSRRCI){
       if(instr.imm == (u16)CSR_ADDR::fcsr || instr.imm == (u16)CSR_ADDR::fflags || instr.imm == (u16)CSR_ADDR::frm){
-        enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+        enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
         return;
       }
     }
@@ -106,11 +134,17 @@ void CPU::step(){
   execute(instr);
   
   halt_if_deadlock(instr);
-  cycle++;
+  
+  // count cycles in the mcsr register
+  set_csr(CSR_ADDR::mcycle, get_csr(CSR_ADDR::mcycle) + 1 );
 }
 
 void CPU::attach_bus(BUS* b){
   bus = b;
+}
+
+void CPU::attach_clint(CLINT *c) {
+  clint = c;
 }
 
 std::string CPU::state_str() {
@@ -172,7 +206,7 @@ u32 CPU::get_reg(u8 idx) const {
 }
 
 void CPU::set_freg(u8 idx, u64 val) {
-  csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
+  csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
 
   fregfile[idx] = val;
 }
@@ -198,7 +232,7 @@ ROUNDING_MODE CPU::get_rm(const Instruction& instr) {
 
   switch(instr.rm){
     default:  
-      enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+      enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
       return ROUNDING_MODE::INV;
     case 0b000: return ROUNDING_MODE::RNE;
     case 0b001: return ROUNDING_MODE::RTZ;
@@ -211,7 +245,7 @@ ROUNDING_MODE CPU::get_rm(const Instruction& instr) {
       u8 frm = get_csr(CSR_ADDR::frm);
       
       if(frm >= 5) {
-        enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+        enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
         return ROUNDING_MODE::INV;
       }
         
@@ -252,11 +286,11 @@ void CPU::fp_begin(ROUNDING_MODE mode) {
 }
 
 void CPU::fp_end() {
-  fcsr |= std::fetestexcept(FE_INVALID)   ? 0x10 : 0x00; // NV
-  fcsr |= std::fetestexcept(FE_DIVBYZERO) ? 0x08 : 0x00; // DZ
-  fcsr |= std::fetestexcept(FE_OVERFLOW)  ? 0x04 : 0x00; // OF
-  fcsr |= std::fetestexcept(FE_UNDERFLOW) ? 0x02 : 0x00; // UF
-  fcsr |= std::fetestexcept(FE_INEXACT)   ? 0x01 : 0x00; // NX
+  fcsr |= std::fetestexcept(FE_INVALID)   ? FCSR_NV : 0x00; // NV
+  fcsr |= std::fetestexcept(FE_DIVBYZERO) ? FCSR_DZ : 0x00; // DZ
+  fcsr |= std::fetestexcept(FE_OVERFLOW)  ? FCSR_OF : 0x00; // OF
+  fcsr |= std::fetestexcept(FE_UNDERFLOW) ? FCSR_UF : 0x00; // UF
+  fcsr |= std::fetestexcept(FE_INEXACT)   ? FCSR_NX : 0x00; // NX
 
   // return to default host mode
   std::fesetround(FE_TONEAREST);
@@ -273,7 +307,7 @@ u32 CPU::mask(u16 idx) {
     case CSR_ADDR::tselect: return 0x00000000;
 
     case CSR_ADDR::mstatus: 
-      return MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS;
+      return MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS_MASK;
 
 
   }
@@ -283,14 +317,22 @@ void CPU::set_csr(u16 idx, u32 val) {
   const u32 m = mask(idx);
 
   if(idx == (u16)(CSR_ADDR::fflags)){
-    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
+    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
     fcsr = (fcsr & ~0x1F) | (val & 0x1F);
   }else if(idx == (u16)(CSR_ADDR::frm)){
-    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
+    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
     fcsr = (fcsr & ~0xE0) | ((val & 0x7) << 5);
   }else if(idx == (u16)(CSR_ADDR::fcsr)){
-    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS; // set FS = 11 = dirty
+    csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
     fcsr = (fcsr & ~0xFF) | (val & 0xFF);
+  }else if(idx == (u16)(CSR_ADDR::mtvec)){
+
+    if((val & 0x3) >= 2){ // invalid / unhandled interrup modes
+      csr[idx] = (val & ~0x3); // write mode = 0 instead
+    }
+
+    csr[idx] = val;
+
   }
   
   else{
@@ -313,6 +355,8 @@ u32 CPU::get_csr(u16 idx) const {
       v |= (1u << 31); // set SD = 1;
     }
     return v; 
+  }else if(idx == (u16)(CSR_ADDR::mip)){
+    return clint->pending_mip();
   }
 
   else{
@@ -320,24 +364,24 @@ u32 CPU::get_csr(u16 idx) const {
   }
 }
 
-void CPU::store(u32 addr, BITSIZE size, u64 val){
+void CPU::store(u32 addr, u8 size, u64 val){
   if(!bus) Error<std::runtime_error>("BUS not assigned");
   last_addr_used = addr;
 
-  if(size == BITSIZE::DOUBLE){
-    bus->store(addr, BITSIZE::WORD, (val & 0x00000000FFFFFFFF));
-    bus->store(addr + 4,     BITSIZE::WORD, (val >> 32));
+  if(size == DOUBLE){
+    bus->store(addr, WORD, (val & 0x00000000FFFFFFFF));
+    bus->store(addr + 4,     WORD, (val >> 32));
   }else
     bus->store(addr, size, val);
 }
 
-u64 CPU::load(u32 addr, BITSIZE size) {
+u64 CPU::load(u32 addr, u8 size) {
   if(!bus) Error<std::runtime_error>("BUS not assigned");
   last_addr_used = addr;
 
-  if(size == BITSIZE::DOUBLE){
-    u64 val = ((u64)bus->load(addr + 4, BITSIZE::WORD) << 32);
-        val |= bus->load(addr, BITSIZE::WORD);
+  if(size == DOUBLE){
+    u64 val = (((u64)bus->load(addr + 4, WORD)) << 32);
+        val |= bus->load(addr, WORD);
     return val;
   }else
     return bus->load(addr, size);
@@ -362,7 +406,7 @@ bool CPU::valid_target(u32 target, const Instruction& instr) {
   
   // check for alignment
   if(target & 0x2){
-    enter_trap(instr.addr, TRAP_CODE::MISALIGNED, target);
+    enter_exception(instr.addr, EXCEPTION_CODE::INSTR_ADDR_MISALIGNED, target);
     return false;
   }
 
@@ -373,7 +417,7 @@ bool CPU::valid_target(u32 target, const Instruction& instr) {
 void CPU::execute(const Instruction& instr){
 
   if(instr.op == Op::INVALID){
-    enter_trap(instr.addr, TRAP_CODE::INVALID_OP, instr.word);
+    enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
     return;
   }
   
@@ -438,11 +482,11 @@ void CPU::execute(const Instruction& instr){
     switch(instr.op){
       default: Error<std::runtime_error>("Invalid op type (should not happen) LOAD");
 
-      case Op::LB: value = sign_extend(load(addr, BITSIZE::BYTE), 8); break;
-      case Op::LH: value = sign_extend(load(addr, BITSIZE::HALF), 16); break;
-      case Op::LW: value = load(addr, BITSIZE::WORD); break;
-      case Op::LBU: value = load(addr, BITSIZE::BYTE); break;
-      case Op::LHU: value = load(addr, BITSIZE::HALF); break;
+      case Op::LB: value = sign_extend(load(addr, BYTE), 8); break;
+      case Op::LH: value = sign_extend(load(addr, HALF), 16); break;
+      case Op::LW: value = load(addr, WORD); break;
+      case Op::LBU: value = load(addr, BYTE); break;
+      case Op::LHU: value = load(addr, HALF); break;
 
     }
 
@@ -456,9 +500,9 @@ void CPU::execute(const Instruction& instr){
     switch(instr.op){
       default: Error<std::runtime_error>("Invalid op type (should not happen) STORE");
 
-      case Op::SB: store(addr, BITSIZE::BYTE, rs2_value); break;
-      case Op::SH: store(addr, BITSIZE::HALF, rs2_value); break;
-      case Op::SW: store(addr, BITSIZE::WORD, rs2_value); break;
+      case Op::SB: store(addr, BYTE, rs2_value); break;
+      case Op::SH: store(addr, HALF, rs2_value); break;
+      case Op::SW: store(addr, WORD, rs2_value); break;
 
     } 
   }
@@ -531,15 +575,15 @@ void CPU::execute(const Instruction& instr){
     
 
     if(instr.op == Op::ECALL){
-      enter_trap(instr.addr, TRAP_CODE::ECALL, 0);
+      enter_exception(instr.addr, EXCEPTION_CODE::ECALL_FROM_M_MODE, 0); //TODO: based on mode, currently only M mode
     }
     
     else if(instr.op == Op::EBREAK){
-      enter_trap(instr.addr, TRAP_CODE::EBREAK, instr.addr);
+      enter_exception(instr.addr, EXCEPTION_CODE::BREAKPOINT, instr.addr);
     }
 
     else if(instr.op == Op::WFI){
-      // wfi = wait for interrup = do nothing for now
+      sleeping = true;
       return;
     }
 
@@ -596,7 +640,7 @@ void CPU::execute(const Instruction& instr){
   else if(instr.type == BaseType::ATOMIC){
     
     if(instr.op == Op::LR){
-      u32 word = load(rs1_value, BITSIZE::WORD); 
+      u32 word = load(rs1_value, WORD); 
       set_reg(instr.rd, word);
 
       reservation_addr = rs1_value;
@@ -607,7 +651,7 @@ void CPU::execute(const Instruction& instr){
     else if(instr.op == Op::SC){
       
       if(reservation_valid && reservation_addr == rs1_value) {
-        store(rs1_value, BITSIZE::WORD, rs2_value);
+        store(rs1_value, WORD, rs2_value);
         set_reg(instr.rd, 0);
         reservation_valid = false;
       }else{
@@ -618,7 +662,7 @@ void CPU::execute(const Instruction& instr){
       return;
 
     }else{
-      u32 value = load(rs1_value, BITSIZE::WORD);
+      u32 value = load(rs1_value, WORD);
       u32 ret_val = 0;
 
       if(instr.op >= Op::AMOSWAP && instr.op <= Op::AMOMAXU) set_reg(instr.rd, value);
@@ -665,7 +709,7 @@ void CPU::execute(const Instruction& instr){
           
       }
 
-      store(rs1_value, BITSIZE::WORD, ret_val);
+      store(rs1_value, WORD, ret_val);
 
     }
     
@@ -677,12 +721,12 @@ void CPU::execute(const Instruction& instr){
     u32 addr = rs1_value + (u32)instr.imm;
     switch(instr.op){
       case Op::FLW: {
-        u64 val = load(addr, BITSIZE::WORD) | 0xFFFFFFFF00000000;
+        u64 val = load(addr, WORD) | 0xFFFFFFFF00000000;
         set_freg(instr.rd, val);
         break;
       }
       case Op::FLD: {
-        u64 val = load(addr, BITSIZE::DOUBLE);
+        u64 val = load(addr, DOUBLE);
         set_freg(instr.rd, val);
         break;
       }
@@ -694,11 +738,11 @@ void CPU::execute(const Instruction& instr){
     u32 addr = rs1_value + instr.imm;
     switch(instr.op){
       case Op::FSW:
-        store(addr, BITSIZE::WORD, fp_rs2);
+        store(addr, WORD, fp_rs2);
         break;
       
       case Op::FSD:
-        store(addr, BITSIZE::DOUBLE, fp_rs2);
+        store(addr, DOUBLE, fp_rs2);
         break;
 
       default: Error<std::runtime_error>("Not handled width for store fp");
@@ -713,7 +757,7 @@ void CPU::execute(const Instruction& instr){
     if(rm == ROUNDING_MODE::INV) return;
     fp_begin(rm);
     
-    if(instr.width == PREC::SINGLE){
+    if(instr.width == PREC_SINGLE){
       float f_rs1 = std::bit_cast<float>((u32)(get_freg_s(instr.rs1)));
       float f_rs2 = std::bit_cast<float>((u32)(get_freg_s(instr.rs2)));
       float f_rs3 = std::bit_cast<float>((u32)(get_freg_s(instr.rs3)));  
@@ -727,7 +771,7 @@ void CPU::execute(const Instruction& instr){
       set_freg(instr.rd, nanbox(std::bit_cast<u32>(canon_nan_s(result))));
 
     }
-    else if(instr.width == PREC::DOUBLE){
+    else if(instr.width == PREC_DOUBLE){
       double f_rs1 = std::bit_cast<double>((u64)(fp_rs1));
       double f_rs2 = std::bit_cast<double>((u64)(fp_rs2));
       double f_rs3 = std::bit_cast<double>((u64)(get_freg(instr.rs3)));
@@ -751,7 +795,7 @@ void CPU::execute(const Instruction& instr){
     
   }
 
-  else if(instr.type == BaseType::FP_ALU && instr.width == PREC::SINGLE){
+  else if(instr.type == BaseType::FP_ALU && instr.width == PREC_SINGLE){
 
     if(instr.op == Op::FSGNJ_S || instr.op == Op::FSGNJN_S || instr.op == Op::FSGNJX_S || instr.op == Op::FMV_W_X){
 
@@ -801,19 +845,19 @@ void CPU::execute(const Instruction& instr){
         
         case Op::FEQ_S:     
           if(is_snan_s(f_rs1) || is_snan_s(f_rs2)) 
-            fcsr |= 0x10; // setting NV flag
+            fcsr |= FCSR_NV;
           result = (f_rs1 == f_rs2) ? 1 : 0; 
           break;
 
         case Op::FLT_S:     
           if(std::isnan(f_rs1) || std::isnan(f_rs2))
-            fcsr |= 0x10; // NV
+            fcsr |= FCSR_NV;
           result = (f_rs1 <  f_rs2) ? 1 : 0; 
           break;
 
         case Op::FLE_S:     
           if(std::isnan(f_rs1) || std::isnan(f_rs2))
-            fcsr |= 0x10; // NV
+            fcsr |= FCSR_NV;
           result = (f_rs1 <= f_rs2) ? 1 : 0; 
           break;
 
@@ -899,7 +943,7 @@ void CPU::execute(const Instruction& instr){
   }
 
   /* RV32D */
-  else if(instr.type == BaseType::FP_ALU && instr.width == PREC::DOUBLE){
+  else if(instr.type == BaseType::FP_ALU && instr.width == PREC_DOUBLE){
     
     if(instr.op == Op::FSGNJ_D || instr.op == Op::FSGNJN_D || instr.op == Op::FSGNJX_D){
 
@@ -1079,7 +1123,7 @@ u32 CPU::alu_div(i32 a, i32 b) {
 
 u32 CPU::alu_divu(u32 a, u32 b) {
   if(b == 0x0){
-    return 0xFFFFFFFF;
+    return UINT32_MAX;
   }
   return a / b;
 }
@@ -1131,7 +1175,7 @@ i32 CPU::fcvt_w_s(float v) {
 
   // special cases
   if(std::isnan(v)) {
-    fcsr |= 0x10; // NV
+    fcsr |= FCSR_NV;
     return INT32_MAX;
   }
 
@@ -1162,7 +1206,7 @@ u32 CPU::fcvt_wu_s(float v) {
 
   // special cases
   if(std::isnan(v)) {
-    fcsr |= 0x10; // NV
+    fcsr |= FCSR_NV;
     return UINT32_MAX;
   }
 
@@ -1266,7 +1310,7 @@ u64 CPU::alu_classify_d(double v){
 i64 CPU::fcvt_w_d(double v) {
 
   if(std::isnan(v)){
-    fcsr |= 0x10; // NV
+    fcsr |= FCSR_NV;
     return INT32_MAX;
   }
 
@@ -1295,7 +1339,7 @@ i64 CPU::fcvt_w_d(double v) {
 u64 CPU::fcvt_wu_d(double v) {
   
   if(std::isnan(v)){
-    fcsr |= 0x10; // NV
+    fcsr |= FCSR_NV;
     return UINT32_MAX;
   }
 
@@ -1368,7 +1412,15 @@ bool CPU::is_snan_d(double d) {
   return alu_classify_d(d) & 0x100;
 }
 
-void CPU::enter_trap(u32 trap_addr, TRAP_CODE cause, u32 tval) {
+void CPU::enter_exception(u32 addr, EXCEPTION_CODE code, u32 word){
+  enter_trap(addr, (u32)code, word);
+}
+
+void CPU::enter_interrupt(u32 addr, INTERRUPT_CODE code){
+  enter_trap(addr, (u32)code, 0); // interrupts always have tval = 0
+}
+
+void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
   set_csr(CSR_ADDR::mepc, trap_addr);       // mepc <- addr of the ecall
   set_csr(CSR_ADDR::mcause, (u32)cause);    // 3: ebreak, 11: ecall Machine mode, 8: ecall User mode
   set_csr(CSR_ADDR::mtval, tval);
@@ -1378,12 +1430,28 @@ void CPU::enter_trap(u32 trap_addr, TRAP_CODE cause, u32 tval) {
   u32 mie = (mstatus >> 3) & 1;                         // aktuelles MIE
   mstatus = (mstatus & ~(MSTATUS_MPIE)) | (mie << 7);   // MPIE <- MIE
   mstatus &= ~(MSTATUS_MIE);                            // MIE <- 0 (handler läuft ungestört)
-  mstatus |= (MSTATUS_MPP);                             // MPP <- 3 (aus m-mode)
+  mstatus |= (MSTATUS_MPP_MASK);                        // MPP <- 3 (aus m-mode)
 
   set_csr(CSR_ADDR::mstatus, mstatus);
 
   u32 mtvec = get_csr(CSR_ADDR::mtvec);
-  pc = mtvec & ~0x3;
+
+  u32 base = mtvec & ~0x3;
+  u8  mode = mtvec & 0x3;
+
+  if(mode == 0b00){
+    // direct mode
+    pc = base;
+  }
+  else if(mode == 0b01){
+    // vectored mode
+    if(cause & 0x80000000){ // = if interrupt (not exception)
+      pc = base + 4 * (cause & 0x7FFFFFFF); // without int. bit i assume
+    }else{
+      pc = base; // exceptions work with the base
+    }
+  }
+  // mode >= 2 should not happen anymore as in set_csr its not allowd for mtvec
 
   // why?
   reservation_valid = false;

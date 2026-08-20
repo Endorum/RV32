@@ -210,7 +210,7 @@ typedef struct Instruction{
   // 0b01 = D = Double = 64 Bit
   // 0b10 = H = Half   = 16 Bit
   // 0b11 = Q = Quad   = 128 Bit
-  PREC width;   // (f7 & 0x3)
+  u8 width;   // (f7 & 0x3)
   u8 funct5;    // ((f7 & ~0x3) >> 2)
   u8 rm; // = f3 
   u8 fm;

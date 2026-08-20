@@ -1,5 +1,6 @@
 #include "../include/DECODE.hpp"
 #include "../include/UTILS.hpp"
+#include "../include/CPU.hpp"
 
 BaseType get_type(u8 opcode){
   // just cast, check for invalid opcode somewhere else i guess
@@ -100,8 +101,8 @@ Op get_op(const Instruction& instr){
 
   // helber for selecting the correct FP variant based on precision / width
   auto sel = [&](Op s, Op d){
-    if(instr.width == PREC::SINGLE) return s;
-    if(instr.width == PREC::DOUBLE) return d;
+    if(instr.width == PREC_SINGLE) return s;
+    if(instr.width == PREC_DOUBLE) return d;
     // ...
     return Op::INVALID;
   };
@@ -266,7 +267,7 @@ Op get_op(const Instruction& instr){
         case 0b11100:
           if(instr.rs2 == 0b00000 && 
              instr.funct3 == 0b000 && 
-             instr.width == PREC::SINGLE) return Op::FMV_X_W;
+             instr.width == PREC_SINGLE) return Op::FMV_X_W;
           if(instr.rs2 == 0b00000 && instr.funct3 == 0b001) return sel(Op::FCLASS_S, Op::FCLASS_D);
           return Op::INVALID;
 
@@ -284,12 +285,12 @@ Op get_op(const Instruction& instr){
         case 0b11110:
           if(instr.rs2 == 0b00000 && 
              instr.funct3 == 0b000 && 
-             instr.width == PREC::SINGLE) return Op::FMV_W_X;
+             instr.width == PREC_SINGLE) return Op::FMV_W_X;
           return Op::INVALID;
 
         case 0b01000:
-          if(instr.width == PREC::SINGLE && instr.rs2 == 0b00001) return Op::FCVT_S_D;
-          if(instr.width == PREC::DOUBLE && instr.rs2 == 0b00000) return Op::FCVT_D_S;
+          if(instr.width == PREC_SINGLE && instr.rs2 == 0b00001) return Op::FCVT_S_D;
+          if(instr.width == PREC_DOUBLE && instr.rs2 == 0b00000) return Op::FCVT_D_S;
           return Op::INVALID;
         
       }

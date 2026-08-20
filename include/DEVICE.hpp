@@ -18,8 +18,9 @@ public:
 
   virtual ~Device() = default;
 
-  virtual u32 load(u32 address, BITSIZE size) = 0; 
-  virtual void store(u32 address, BITSIZE size, u32 value) = 0;
+  virtual u32 load(u32 address, u8 size) = 0; 
+  virtual void store(u32 address, u8 size, u32 value) = 0;
+  void tick();
   
 
   u32 get_start() const { return start; }

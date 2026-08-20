@@ -17,9 +17,9 @@ public:
 
   void load_firmware();
 
-  u32 load(u32 address, BITSIZE size) override;
+  u32 load(u32 address, u8 size) override;
 
-  void store(u32 address, BITSIZE size, u32 value) override {
+  void store(u32 address, u8 size, u32 value) override {
     // Error<std::invalid_argument>("ROM is read only!");
     // raise error?
   }

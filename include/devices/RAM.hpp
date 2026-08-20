@@ -4,7 +4,7 @@
 #include "CONFIG.hpp"
 #include "DEFS.hpp"
 #include "DEVICE.hpp"
-#include "MAP.h"
+#include "MAP.hpp"
 #include "UTILS.hpp"
 #include <chrono>
 #include <memory>
@@ -21,9 +21,9 @@ public:
     page_amount = size / PAGE_SIZE;
   }
  
-  u32 load(u32 addr, BITSIZE size) override;
+  u32 load(u32 addr, u8 size) override;
 
-  void store(u32 addr, BITSIZE size, u32 value) override;
+  void store(u32 addr, u8 size, u32 value) override;
 
   
 

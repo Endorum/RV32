@@ -16,9 +16,9 @@ class TOHOST : public Device {
 public:
   explicit TOHOST(u32 start, u32 size) : Device(start, size, "TOHOST"){}
 
-  u32 load(u32 addr, BITSIZE size) override;
+  u32 load(u32 addr, u8 size) override;
 
-  void store(u32 addr, BITSIZE size, u32 value) override;
+  void store(u32 addr, u8 size, u32 value) override;
 
 private:
 };

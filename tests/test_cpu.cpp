@@ -14,9 +14,8 @@
 
 #include "test_common.hpp"
 
-// BITSIZE became an enum class (2026-08-16); this alias keeps the many
-// bus.load(..., WORD) call sites readable
-static constexpr BITSIZE WORD = BITSIZE::WORD;
+// access sizes (BYTE/HALF/WORD/DOUBLE) are plain #define constants from
+// DEFS.hpp since 2026-08-20; bus.load(..., WORD) uses them directly
 
 static constexpr u32 RAM_BYTES = 0x1000;
 static constexpr u32 RESULT0 = 0x200;
@@ -28,14 +27,14 @@ class TestRAM : public Device {
 public:
   TestRAM() : Device(0x0, RAM_BYTES, "TestRAM") {}
 
-  u32 load(u32 address, BITSIZE size) override {
+  u32 load(u32 address, u8 size) override {
     u32 v = 0;
     for (u32 i = 0; i < (u32)size; i++)
       v |= (u32)mem[address + i] << (8 * i);
     return v;
   }
 
-  void store(u32 address, BITSIZE size, u32 value) override {
+  void store(u32 address, u8 size, u32 value) override {
     for (u32 i = 0; i < (u32)size; i++)
       mem[address + i] = (u8)(value >> (8 * i));
   }
@@ -48,11 +47,21 @@ private:
 // The bus holds non-owning pointers now, so `ram` lives in the test body
 // alongside `bus` — it must outlive the bus.load() checks after we return.
 static void run_program(BUS& bus, TestRAM& ram, const std::vector<u32>& prog, int steps) {
+  // CPU::step() consults the CLINT unconditionally (2026-08-20), so every
+  // program runs with one attached at its default base. Fresh instance per
+  // run — tests must not inherit mtime/msip state from a predecessor. The
+  // previous instance is deleted here (its bus and checks are long done);
+  // the current one deliberately outlives this call for post-run bus reads.
+  static CLINT* clint = nullptr;
+  delete clint;
+  clint = new CLINT(CLINT_START, CLINT_SIZE);
+
   {
     // swallow addDevice's "Adding Device:" chatter
     std::ostringstream sink;
     std::streambuf* old = std::cout.rdbuf(sink.rdbuf());
     bus.addDevice(ram);
+    bus.addDevice(*clint);
     std::cout.rdbuf(old);
   }
 
@@ -61,9 +70,12 @@ static void run_program(BUS& bus, TestRAM& ram, const std::vector<u32>& prog, in
 
   CPU cpu;
   cpu.attach_bus(&bus);
+  cpu.attach_clint(clint);
   cpu.reset(); // pc = 0
-  for (int i = 0; i < steps; i++)
+  for (int i = 0; i < steps; i++) {
     cpu.step();
+    clint->tick(); // same order as Machine::step()
+  }
 }
 
 // run a test body; a stray exception (bad jump target, invalid decode, ...)
@@ -686,17 +698,140 @@ static void test_fence_variants_are_nops() {
   });
 }
 
-static void test_wfi_is_nop() {
-  // no interrupts exist yet -> spec allows WFI to complete as a nop
-  guarded("wfi nop", [] {
+// ------------------------------------------------- WFI + CLINT + mtvec
+//
+// Timing model these tests rely on: run_program ticks the CLINT once after
+// every cpu.step() (same order as Machine::step), and mtime starts at 0.
+// So after N steps mtime == N, and a sleeping CPU wakes at the start of the
+// first step where mtime >= mtimecmp. CLINT regs sit at CLINT_START
+// (0x40000000): mtimecmp at +0x4000, reset value is all-ones — tests write
+// lo first (hi still huge, no spurious MTIP), then hi.
+
+static void test_wfi_sleeps_without_wake_source() {
+  // real WFI: with mie == 0 nothing can wake the hart, so the instructions
+  // after the wfi must never execute, no matter how many steps we run
+  guarded("wfi sleeps", [] {
     BUS bus;
     TestRAM ram;
     run_program(bus, ram, {
       0x10500073, // wfi
       0x02A00313, // addi t1, x0, 42
       0x20602023, // sw   t1, 0x200(x0)
-    }, 3);
-    CHECK_EQ(bus.load(RESULT0, WORD), 42);
+    }, 6);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0); // never ran
+  });
+}
+
+static void test_wfi_timer_wake_traps() {
+  // mtimecmp = 20, MTIE + mstatus.MIE set, handler at 0x40 (direct mode).
+  // wfi retires at step 10 (pc already 0x28), sleep until mtime hits 20,
+  // step 21 wakes and traps. Handler proves it ran (RESULT0), dumps mepc
+  // (RESULT2, must be wfi+4 = 0x28), pushes mtimecmp away and mrets; the
+  // resume path stores RESULT1.
+  guarded("wfi timer wake", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400042B7, // 0x00: lui   t0, 0x40004      t0 = &mtimecmp
+      0x01400313, // 0x04: addi  t1, x0, 20
+      0x0062A023, // 0x08: sw    t1, 0(t0)        mtimecmp_lo = 20
+      0x0002A223, // 0x0C: sw    x0, 4(t0)        mtimecmp_hi = 0
+      0x04000393, // 0x10: addi  t2, x0, 0x40
+      0x30539073, // 0x14: csrw  mtvec, t2        direct mode
+      0x08000E13, // 0x18: addi  t3, x0, 128      MTIE
+      0x304E1073, // 0x1C: csrw  mie, t3
+      0x30046073, // 0x20: csrsi mstatus, 8       MIE = 1
+      0x10500073, // 0x24: wfi
+      0x00100E93, // 0x28: addi  t4, x0, 1        <- mret lands here
+      0x21D02223, // 0x2C: sw    t4, 0x204(x0)    RESULT1 = 1
+      0x0000006F, // 0x30: j     +0               park (MIE=1, no halt)
+      0x00000013, // 0x34: nop (filler up to the handler)
+      0x00000013, // 0x38: nop
+      0x00000013, // 0x3C: nop
+      0x06300F13, // 0x40: addi  t5, x0, 99       <- trap handler
+      0x21E02023, // 0x44: sw    t5, 0x200(x0)    RESULT0 = 99
+      0x34102473, // 0x48: csrr  s0, mepc
+      0x20802423, // 0x4C: sw    s0, 0x208(x0)    RESULT2 = mepc
+      0x400042B7, // 0x50: lui   t0, 0x40004
+      0xFFF00313, // 0x54: addi  t1, x0, -1
+      0x0062A223, // 0x58: sw    t1, 4(t0)        mtimecmp_hi = -1: MTIP off
+      0x30200073, // 0x5C: mret
+    }, 31);
+    CHECK_EQ(bus.load(RESULT0, WORD), 99);   // handler ran
+    CHECK_EQ(bus.load(RESULT1, WORD), 1);    // resumed after wfi
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x28); // mepc = instr after wfi
+  });
+}
+
+static void test_wfi_wakes_without_trap_when_mie_clear() {
+  // the poll idiom: MTIE enabled in mie but mstatus.MIE = 0. WFI must still
+  // wake once MTIP is pending (wake condition ignores mstatus.MIE) and fall
+  // through to the next instruction WITHOUT trapping. A wake condition that
+  // wrongly includes mstatus.MIE sleeps forever here -> RESULT0 stays 0.
+  guarded("wfi wake, no trap", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400042B7, // 0x00: lui   t0, 0x40004
+      0x00A00313, // 0x04: addi  t1, x0, 10
+      0x0062A023, // 0x08: sw    t1, 0(t0)        mtimecmp = 10
+      0x0002A223, // 0x0C: sw    x0, 4(t0)
+      0x08000E13, // 0x10: addi  t3, x0, 128      MTIE
+      0x304E1073, // 0x14: csrw  mie, t3          (mstatus.MIE stays 0)
+      0x10500073, // 0x18: wfi
+      0x00700E93, // 0x1C: addi  t4, x0, 7        <- wake continues here
+      0x21D02023, // 0x20: sw    t4, 0x200(x0)    RESULT0 = 7
+    }, 12);
+    CHECK_EQ(bus.load(RESULT0, WORD), 7);
+  });
+}
+
+static void test_mtvec_vectored_dispatch() {
+  // mtvec = 0x40 | mode 1. The vector table is a table of INSTRUCTIONS,
+  // one 4-byte slot per cause: interrupts jump to base + 4*cause, while
+  // exceptions always enter at base+0 even in vectored mode. Timer (cause
+  // 7) must land at 0x40+28 = 0x5C; the ecall after mret must land at 0x40.
+  guarded("mtvec vectored", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400042B7, // 0x00: lui   t0, 0x40004
+      0x01400313, // 0x04: addi  t1, x0, 20
+      0x0062A023, // 0x08: sw    t1, 0(t0)        mtimecmp = 20
+      0x0002A223, // 0x0C: sw    x0, 4(t0)
+      0x04100393, // 0x10: addi  t2, x0, 0x41     base 0x40 | vectored
+      0x30539073, // 0x14: csrw  mtvec, t2
+      0x08000E13, // 0x18: addi  t3, x0, 128      MTIE
+      0x304E1073, // 0x1C: csrw  mie, t3
+      0x30046073, // 0x20: csrsi mstatus, 8       MIE = 1
+      0x10500073, // 0x24: wfi
+      0x00000073, // 0x28: ecall                  <- after mret: exception
+      0x0000006F, // 0x2C: j     +0
+      0x00000013, // 0x30: nop (filler up to the vector table)
+      0x00000013, // 0x34: nop
+      0x00000013, // 0x38: nop
+      0x00000013, // 0x3C: nop
+      0x0200006F, // 0x40: j     +32 -> 0x60      slot 0: all exceptions
+      0x0000006F, // 0x44: j     +0               slot 1 (SSI)  unreachable
+      0x0000006F, // 0x48: j     +0               slot 2        unreachable
+      0x0000006F, // 0x4C: j     +0               slot 3 (MSI)  msip never set
+      0x0000006F, // 0x50: j     +0               slot 4        unreachable
+      0x0000006F, // 0x54: j     +0               slot 5 (STI)  unreachable
+      0x0000006F, // 0x58: j     +0               slot 6        unreachable
+      0x0140006F, // 0x5C: j     +20 -> 0x70      slot 7: machine timer
+      0x06F00F13, // 0x60: addi  t5, x0, 111      <- exception stub
+      0x21E02223, // 0x64: sw    t5, 0x204(x0)    RESULT1 = 111
+      0x0000006F, // 0x68: j     +0
+      0x00000013, // 0x6C: nop
+      0x0DE00F13, // 0x70: addi  t5, x0, 222      <- timer stub
+      0x21E02023, // 0x74: sw    t5, 0x200(x0)    RESULT0 = 222
+      0x400042B7, // 0x78: lui   t0, 0x40004
+      0xFFF00313, // 0x7C: addi  t1, x0, -1
+      0x0062A223, // 0x80: sw    t1, 4(t0)        MTIP off
+      0x30200073, // 0x84: mret                   -> back to 0x28 (ecall)
+    }, 32);
+    CHECK_EQ(bus.load(RESULT0, WORD), 222); // timer vectored to slot 7
+    CHECK_EQ(bus.load(RESULT1, WORD), 111); // ecall entered at base+0
   });
 }
 
@@ -1717,6 +1852,195 @@ static void test_fs_off_gates_fp() {
   });
 }
 
+// ------------------------------------------------------------ CLINT / IRQs
+//
+// CLINT at 0x40000000: msip +0x0, mtimecmp +0x4000, mtime +0xBFF8. mtime
+// ticks once per step (harness mirrors Machine::step order). Interrupts are
+// level-triggered: handlers must clear the source (msip / mtimecmp) before
+// mret or they re-fire forever.
+
+static void test_clint_registers() {
+  // passive register access only — no interrupts enabled anywhere
+  guarded("clint regs", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x4000C2B7, // lui  t0, 0x4000C       mtime lo = -8(t0)
+      0xFF82A303, // lw   t1, -8(t0)        sample 1
+      0x20602023, // sw   t1, 0x200(x0)
+      0xFF82A383, // lw   t2, -8(t0)        sample 2, two steps later
+      0x406383B3, // sub  t2, t2, t1
+      0x20702223, // sw   t2, 0x204(x0)     delta = 2 ticks
+      0x400042B7, // lui  t0, 0x40004       mtimecmp
+      0x12300313, // addi t1, x0, 0x123
+      0x0062A023, // sw   t1, 0(t0)         cmp lo
+      0x45600313, // addi t1, x0, 0x456
+      0x0062A223, // sw   t1, 4(t0)         cmp hi
+      0x0002A383, // lw   t2, 0(t0)
+      0x20702423, // sw   t2, 0x208(x0)
+      0x0042A383, // lw   t2, 4(t0)
+      0x20702623, // sw   t2, 0x20C(x0)
+      0x400002B7, // lui  t0, 0x40000       msip
+      0xFFF00313, // addi t1, x0, -1
+      0x0062A023, // sw   t1, 0(t0)         write all-ones
+      0x0002A383, // lw   t2, 0(t0)
+      0x20702823, // sw   t2, 0x210(x0)     WARL: only bit 0 sticks
+      0x0002A023, // sw   x0, 0(t0)
+      0x0002A383, // lw   t2, 0(t0)
+      0x20702A23, // sw   t2, 0x214(x0)
+    }, 23);
+    CHECK_EQ(bus.load(0x204, WORD), 2);     // mtime ticked once per step
+    CHECK_EQ(bus.load(0x208, WORD), 0x123); // mtimecmp lo readback
+    CHECK_EQ(bus.load(0x20C, WORD), 0x456); // mtimecmp hi readback
+    CHECK_EQ(bus.load(0x210, WORD), 1);     // msip is WARL, bit 0 only
+    CHECK_EQ(bus.load(0x214, WORD), 0);
+  });
+}
+
+static void test_msip_interrupt() {
+  // software IRQ: fires between instructions, mcause has the interrupt bit,
+  // mepc points at the NEXT unexecuted instruction, mret resumes there
+  guarded("msip irq", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x06000293, // 0x00: addi t0, x0, 0x60    handler
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x30445073, // 0x08: csrwi mie, 8         MSIE (bit 3)
+      0x30046073, // 0x0C: csrsi mstatus, 8     MIE on
+      0x400002B7, // 0x10: lui t0, 0x40000
+      0x00100313, // 0x14: addi t1, x0, 1
+      0x0062A023, // 0x18: sw t1, 0(t0)         msip = 1 -> IRQ pending
+      0x07700393, // 0x1C: addi t2, x0, 0x77    (runs AFTER the handler)
+      0x20702C23, // 0x20: sw t2, 0x218(x0)     marker: resumed correctly
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x342023F3, // 0x60: csrr t2, mcause
+      0x20702023, // 0x64: sw t2, 0x200(x0)
+      0x341023F3, // 0x68: csrr t2, mepc
+      0x20702223, // 0x6C: sw t2, 0x204(x0)
+      0x400002B7, // 0x70: lui t0, 0x40000
+      0x0002A023, // 0x74: sw x0, 0(t0)         clear msip (level-triggered!)
+      0x30200073, // 0x78: mret -> 0x1C
+    }, 17);
+    CHECK_EQ(bus.load(0x200, WORD), 0x80000003); // M software interrupt
+    CHECK_EQ(bus.load(0x204, WORD), 0x1C);       // mepc = NEXT instruction
+    CHECK_EQ(bus.load(0x218, WORD), 0x77);       // resumed and continued
+  });
+}
+
+static void test_timer_interrupt() {
+  guarded("timer irq", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x06000293, // 0x00: addi t0, x0, 0x60    handler
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x08000313, // 0x08: addi t1, x0, 0x80    MTIE (bit 7)
+      0x30431073, // 0x0C: csrw mie, t1
+      0x400042B7, // 0x10: lui t0, 0x40004      mtimecmp
+      0x0002A223, // 0x14: sw x0, 4(t0)         cmp hi = 0
+      0x04000313, // 0x18: addi t1, x0, 0x40
+      0x0062A023, // 0x1C: sw t1, 0(t0)         cmp = 64 ticks
+      0x30046073, // 0x20: csrsi mstatus, 8     MIE on
+      0x00000063, // 0x24: beq x0, x0, 0x24     spin until the timer fires
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x342023F3, // 0x60: csrr t2, mcause
+      0x20702023, // 0x64: sw t2, 0x200(x0)
+      0x341023F3, // 0x68: csrr t2, mepc
+      0x20702223, // 0x6C: sw t2, 0x204(x0)
+      0x400042B7, // 0x70: lui t0, 0x40004
+      0xFFF00313, // 0x74: addi t1, x0, -1
+      0x0062A223, // 0x78: sw t1, 4(t0)         cmp hi = ~0 -> squelch
+      0x30200073, // 0x7C: mret -> back to the spin
+    }, 120);
+    CHECK_EQ(bus.load(0x200, WORD), 0x80000007); // M timer interrupt
+    CHECK_EQ(bus.load(0x204, WORD), 0x24);       // mepc = the spin itself
+  });
+}
+
+static void test_irq_gated_by_mstatus_mie() {
+  // pending + enabled in mie, but mstatus.MIE=0: nothing may fire until
+  // the global bit goes on — then it fires immediately
+  guarded("irq MIE gate", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x06000293, // 0x00: addi t0, x0, 0x60
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x30445073, // 0x08: csrwi mie, 8         MSIE on, MIE still off
+      0x400002B7, // 0x0C: lui t0, 0x40000
+      0x00100313, // 0x10: addi t1, x0, 1
+      0x0062A023, // 0x14: sw t1, 0(t0)         msip = 1: pending, gated
+      0x05500393, // 0x18: addi t2, x0, 0x55
+      0x20702023, // 0x1C: sw t2, 0x200(x0)     must run WITHOUT interrupt
+      0x30046073, // 0x20: csrsi mstatus, 8     MIE on -> IRQ fires NOW
+      0x06600393, // 0x24: addi t2, x0, 0x66    (after the handler)
+      0x20702223, // 0x28: sw t2, 0x204(x0)
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013,
+      0x342023F3, // 0x60: csrr t2, mcause
+      0x20702423, // 0x64: sw t2, 0x208(x0)
+      0x400002B7, // 0x68: lui t0, 0x40000
+      0x0002A023, // 0x6C: sw x0, 0(t0)
+      0x30200073, // 0x70: mret -> 0x24
+    }, 17);
+    CHECK_EQ(bus.load(0x200, WORD), 0x55);       // ran while gated
+    CHECK_EQ(bus.load(0x208, WORD), 0x80000003); // fired after enable
+    CHECK_EQ(bus.load(0x204, WORD), 0x66);       // and resumed
+  });
+}
+
+static void test_irq_gated_by_mie_mask() {
+  // mstatus.MIE=1 but mie=0: the pending msip must not fire
+  guarded("irq mie mask", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x30046073, // csrsi mstatus, 8   MIE on, mie stays 0
+      0x400002B7, // lui  t0, 0x40000
+      0x00100313, // addi t1, x0, 1
+      0x0062A023, // sw   t1, 0(t0)     msip = 1
+      0x07700393, // addi t2, x0, 0x77
+      0x20702023, // sw   t2, 0x200(x0) reached without any trap
+    }, 6);
+    CHECK_EQ(bus.load(0x200, WORD), 0x77);
+  });
+}
+
+static void test_mip_csr_is_computed() {
+  // csrr mip must mirror the live CLINT state at the SPEC bit positions
+  // (MSIP=3, MTIP=7). MIE stays off so nothing fires while pending.
+  guarded("mip csr", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x400002B7, // lui  t0, 0x40000
+      0x00100313, // addi t1, x0, 1
+      0x0062A023, // sw   t1, 0(t0)       msip = 1
+      0x344023F3, // csrr t2, mip
+      0x20702023, // sw   t2, 0x200(x0)   expect 0x08
+      0x400042B7, // lui  t0, 0x40004
+      0x0002A223, // sw   x0, 4(t0)       cmp hi = 0
+      0x00100313, // addi t1, x0, 1
+      0x0062A023, // sw   t1, 0(t0)       cmp = 1, mtime is already past it
+      0x344023F3, // csrr t2, mip
+      0x20702223, // sw   t2, 0x204(x0)   expect 0x88 (both pending)
+      0x400002B7, // lui  t0, 0x40000
+      0x0002A023, // sw   x0, 0(t0)       msip = 0
+      0x344023F3, // csrr t2, mip
+      0x20702423, // sw   t2, 0x208(x0)   expect 0x80 (timer only)
+    }, 15);
+    CHECK_EQ(bus.load(0x200, WORD), 0x08);
+    CHECK_EQ(bus.load(0x204, WORD), 0x88);
+    CHECK_EQ(bus.load(0x208, WORD), 0x80);
+  });
+}
+
 // ---------------------------------------------------------------- entry
 
 void run_cpu_tests() {
@@ -1751,7 +2075,10 @@ void run_cpu_tests() {
   test_sc_wrong_address_fails();
   test_amoswap_touches_only_rd_and_mem();
   test_fence_variants_are_nops();
-  test_wfi_is_nop();
+  test_wfi_sleeps_without_wake_source();
+  test_wfi_timer_wake_traps();
+  test_wfi_wakes_without_trap_when_mie_clear();
+  test_mtvec_vectored_dispatch();
   test_flw_nan_boxing();
   test_fld_fsd_word_order();
   test_fsw_writes_four_bytes();
@@ -1784,4 +2111,10 @@ void run_cpu_tests() {
   test_dyn_rm_invalid_frm_traps();
   test_minmax_snan_flags();
   test_fs_off_gates_fp();
+  test_clint_registers();
+  test_msip_interrupt();
+  test_timer_interrupt();
+  test_irq_gated_by_mstatus_mie();
+  test_irq_gated_by_mie_mask();
+  test_mip_csr_is_computed();
 }

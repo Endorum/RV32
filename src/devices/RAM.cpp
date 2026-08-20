@@ -1,6 +1,6 @@
 #include "RAM.hpp"
 
-u32 RAM::load(u32 addr, BITSIZE size) {
+u32 RAM::load(u32 addr, u8 size) {
 
   u32 value = 0;
 
@@ -30,7 +30,7 @@ u32 RAM::load(u32 addr, BITSIZE size) {
   return value;
 }
 
-void RAM::store(u32 addr, BITSIZE size, u32 value) {
+void RAM::store(u32 addr, u8 size, u32 value) {
 
   for (u32 i = 0; i < (u8)size; i++) {
     u32 address = addr + i;

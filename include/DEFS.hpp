@@ -16,67 +16,129 @@
 #define f32 float
 #define f64 double
 
-#define i32_float_min -2147483648.0f
-#define i32_float_max  2147483647.0f
-#define u32_float_max  4294967295.0f
 
-enum class TRAP_CODE{
-  MISALIGNED = 0,
-  INVALID_OP = 2, // internal error more broad?
-  EBREAK = 3,
-  ECALL = 11
-};
 
-enum MISA_CODE : u32{
-  MISA_EXT_A    = (1UL << 0),   // Atomics
-  MISA_EXT_B    = (1UL << 1),   // Bit Manipulation
-  MISA_EXT_C    = (1UL << 2),   // Compressed
-  MISA_EXT_D    = (1UL << 3),   // Double FP
-  MISA_EXT_E    = (1UL << 4),   // Embedded Base ISA
-  MISA_EXT_F    = (1UL << 5),   // Single FP
-  MISA_EXT_H    = (1UL << 7),   // Hypervisor
-  MISA_EXT_I    = (1UL << 8),   // Integer Base ISA
-  MISA_EXT_M    = (1UL << 12),  // Multiply / Divide
-  MISA_EXT_S    = (1UL << 18),  // Supervisor Mode
-  MISA_EXT_U    = (1UL << 20),  // User Mode
-  MISA_EXT_V    = (1UL << 21),  // Vector
-  MISA_EXT_X    = (1UL << 23),  // Non-standard Extensions
+#define NAN_S 0x7FC00000 // canon nan in single prec
+#define NAN_D 0x7FF8000000000000 // ... double prec
 
-  MISA_XLEN_32  = (1UL << 30)
-};
 
-enum class FCSR_FLAG : u32 {
-  NX = 0x01,
-  UF = 0x02,
-  OF = 0x04,
-  DZ = 0x08,
-  NV = 0x10
-};
+// clint stuff
+#define MIP_MTIP (1ULL << 7)
+#define MIP_MSIP (1ULL << 3)
 
-enum class ROUNDING_MODE : u8 {
-  INV, // invalid
-  RNE, // Round to nearest, ties to even
-  RTZ, // Round towards Zero
-  RDN, // Round Down (towards -\infty)
-  RUP, // Round Up (towards +\infty)
-  RMM, // Round to Nearest, ties to Max Magnitude
-  DYN, // In Instr.'s ->rm<- Field, selects dynamic rounding mode
-};
+/* Interrupt state */
+#define MSTATUS_SIE          (1ULL << 1)
+#define MSTATUS_MIE          (1ULL << 3)
+#define MSTATUS_SPIE         (1ULL << 5)
+#define MSTATUS_MPIE         (1ULL << 7)
 
-enum class BITSIZE
-{
-  BYTE = 1,
-  HALF = 2,
-  WORD = 4,
-  DOUBLE = 8
-};
+/* Endianness */
+#define MSTATUS_UBE          (1ULL << 6)
 
-enum class PREC{
-  SINGLE = 0b00,
-  DOUBLE = 0b01,
-  HALF   = 0b10,
-  QUAD   = 0b11
-};
+/* Previous privilege */
+#define MSTATUS_SPP          (1ULL << 8)
+
+#define MSTATUS_MPP_SHIFT    11
+#define MSTATUS_MPP_MASK     (3ULL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_MPP_U        (0ULL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_MPP_S        (1ULL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_MPP_M        (3ULL << MSTATUS_MPP_SHIFT)
+
+/* Vector state */
+#define MSTATUS_VS_SHIFT     9
+#define MSTATUS_VS_MASK      (3ULL << MSTATUS_VS_SHIFT)
+#define MSTATUS_VS_OFF       (0ULL << MSTATUS_VS_SHIFT)
+#define MSTATUS_VS_INITIAL   (1ULL << MSTATUS_VS_SHIFT)
+#define MSTATUS_VS_CLEAN     (2ULL << MSTATUS_VS_SHIFT)
+#define MSTATUS_VS_DIRTY     (3ULL << MSTATUS_VS_SHIFT)
+
+/* Floating point state */
+#define MSTATUS_FS_SHIFT     13
+#define MSTATUS_FS_MASK      (3ULL << MSTATUS_FS_SHIFT)
+#define MSTATUS_FS_OFF       (0ULL << MSTATUS_FS_SHIFT)
+#define MSTATUS_FS_INITIAL   (1ULL << MSTATUS_FS_SHIFT)
+#define MSTATUS_FS_CLEAN     (2ULL << MSTATUS_FS_SHIFT)
+#define MSTATUS_FS_DIRTY     (3ULL << MSTATUS_FS_SHIFT)
+
+/* Extension state */
+#define MSTATUS_XS_SHIFT     15
+#define MSTATUS_XS_MASK      (3ULL << MSTATUS_XS_SHIFT)
+
+/* Memory privilege */
+#define MSTATUS_MPRV         (1ULL << 17)
+#define MSTATUS_SUM          (1ULL << 18)
+#define MSTATUS_MXR          (1ULL << 19)
+
+/* Virtualization / traps */
+#define MSTATUS_TVM          (1ULL << 20)
+#define MSTATUS_TW           (1ULL << 21)
+#define MSTATUS_TSR          (1ULL << 22)
+
+/* CFI / Double Trap */
+#define MSTATUS_SPELP        (1ULL << 23)
+#define MSTATUS_SDT          (1ULL << 24)
+
+/* RV64 XLEN control */
+#define MSTATUS_UXL_SHIFT    32
+#define MSTATUS_UXL_MASK     (3ULL << MSTATUS_UXL_SHIFT)
+
+#define MSTATUS_SXL_SHIFT    34
+#define MSTATUS_SXL_MASK     (3ULL << MSTATUS_SXL_SHIFT)
+
+/* RV64 high fields */
+#define MSTATUS_SBE          (1ULL << 36)
+#define MSTATUS_MBE          (1ULL << 37)
+#define MSTATUS_GVA          (1ULL << 38)
+#define MSTATUS_MPV          (1ULL << 39)
+
+#define MSTATUS_MPELP        (1ULL << 41)
+#define MSTATUS_MDT          (1ULL << 42)
+
+/* Dirty summary */
+#define MSTATUS_SD           (1ULL << 63)
+
+
+#define MISA_EXT_A  0x00000001 // Atomic Extension                               
+#define MISA_EXT_B  0x00000002 // Bit-Manipulation Extension                     
+#define MISA_EXT_C  0x00000004 // Compressed Instructions                        
+#define MISA_EXT_D  0x00000008 // Double-Precision Floating Point                
+#define MISA_EXT_E  0x00000010 // RV32E / RV64E Base ISA                         
+#define MISA_EXT_F  0x00000020 // Single-Precision Floating Point                
+#define MISA_EXT_G  0x00000040 // reserviert                                     
+#define MISA_EXT_H  0x00000080 // Hypervisor Extension                           
+#define MISA_EXT_I  0x00000100 // RV32I / RV64I Base ISA                         
+#define MISA_EXT_J  0x00000200 // reserviert                                     
+#define MISA_EXT_K  0x00000400 // reserviert                                     
+#define MISA_EXT_L  0x00000800 // reserviert                                     
+#define MISA_EXT_M  0x00001000 // Integer Multiply / Divide                      
+#define MISA_EXT_N  0x00002000 // vorläufig für User-Level Interrupts reserviert 
+#define MISA_EXT_O  0x00004000 // reserviert                                     
+#define MISA_EXT_P  0x00008000 // vorläufig für Packed-SIMD reserviert           
+#define MISA_EXT_Q  0x00010000 // Quad-Precision Floating Point                  
+#define MISA_EXT_R  0x00020000 // reserviert                                     
+#define MISA_EXT_S  0x00040000 // Supervisor Mode implementiert                  
+#define MISA_EXT_T  0x00080000 // reserviert                                     
+#define MISA_EXT_U  0x00100000 // User Mode implementiert                        
+#define MISA_EXT_V  0x00200000 // Vector Extension                               
+#define MISA_EXT_W  0x00400000 // reserviert                                     
+#define MISA_EXT_X  0x00800000 // Nicht-standardisierte Extensions vorhanden     
+#define MISA_EXT_Y  0x01000000 // reserviert                                     
+#define MISA_EXT_Z  0x02000000 // reserviert                                     
+
+#define MISA_MXL_RV32  0x40000000
+#define MISA_MXL_RV64  0x8000000000000000ULL
+
+#define FCSR_NX 0x01
+#define FCSR_UF 0x02
+#define FCSR_OF 0x04
+#define FCSR_DZ 0x08
+#define FCSR_NV 0x10
+
+#define BYTE 1
+#define HALF 2
+#define WORD 4
+#define DOUBLE 8
+
 
 
 
@@ -141,14 +203,6 @@ enum class CSR_ADDR : u16
 
 
 
-// csr stuff
-#define MSTATUS_MIE (1u << 3) 
-#define MSTATUS_MPIE (1u << 7)
-#define MSTATUS_MPP (3u << 11)
-#define MSTATUS_FS (3u << 13)
-
-#define NAN_S 0x7FC00000
-#define NAN_D 0x7FF8000000000000
 
 #endif // DEFS_HPP
 

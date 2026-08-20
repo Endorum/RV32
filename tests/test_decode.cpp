@@ -9,6 +9,7 @@
 #include <string>
 
 #include "../include/DECODE.hpp"
+#include "../include/CPU.hpp"
 #include "../include/UTILS.hpp"
 
 #include "test_common.hpp"
@@ -287,7 +288,7 @@ static void test_rv32f() {
   CHECK_EQ(d.rs1, 2);
   CHECK_EQ(d.rs2, 3);
   CHECK_EQ(d.rs3, 4);
-  CHECK(d.width == PREC::SINGLE);
+  CHECK(d.width == PREC_SINGLE);
   CHECK(decode(0x203170C7, 0).op == Op::FMSUB_S);  // fmsub.s
   CHECK(decode(0x203170CB, 0).op == Op::FNMSUB_S); // fnmsub.s
   CHECK(decode(0x203170CF, 0).op == Op::FNMADD_S); // fnmadd.s
@@ -296,7 +297,7 @@ static void test_rv32f() {
   CHECK(d.op == Op::FADD_S);
   CHECK(d.type == BaseType::FP_ALU);
   CHECK_EQ(d.funct5, 0b00000);
-  CHECK(d.width == PREC::SINGLE);
+  CHECK(d.width == PREC_SINGLE);
   CHECK(decode(0x083170D3, 0).op == Op::FSUB_S);   // fsub.s
   CHECK(decode(0x103170D3, 0).op == Op::FMUL_S);   // fmul.s
   CHECK(decode(0x183170D3, 0).op == Op::FDIV_S);   // fdiv.s
@@ -353,7 +354,7 @@ static void test_rv32d() {
   d = decode(0x023170D3, 0); // fadd.d ft1, ft2, ft3
   CHECK(d.op == Op::FADD_D);
   CHECK_EQ(d.funct5, 0b00000);
-  CHECK(d.width == PREC::DOUBLE);
+  CHECK(d.width == PREC_DOUBLE);
   CHECK(decode(0x0A3170D3, 0).op == Op::FSUB_D);   // fsub.d
   CHECK(decode(0x123170D3, 0).op == Op::FMUL_D);   // fmul.d
   CHECK(decode(0x1A3170D3, 0).op == Op::FDIV_D);   // fdiv.d

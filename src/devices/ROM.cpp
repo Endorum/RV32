@@ -21,7 +21,7 @@ void ROM::load_firmware(){
   std::cout << "Done!" << std::endl;
 }
 
-u32 ROM::load(u32 address, BITSIZE size) {
+u32 ROM::load(u32 address, u8 size) {
   if (address >= data.size()) {
     // rest is simply = 0 so as to not run into an Error
     // TODO: raise an error?

@@ -20,9 +20,9 @@ public:
 
   void addDevice(Device& dev);
 
-  u32 load(u32 address, BITSIZE size) const;
+  u32 load(u32 address, u8 size) const;
 
-  void store(u32 address, BITSIZE size, u32 value);
+  void store(u32 address, u8 size, u32 value);
 
   std::string str() const;
 

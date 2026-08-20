@@ -47,14 +47,18 @@ add_executable(tests EXCLUDE_FROM_ALL
   "${CMAKE_SOURCE_DIR}/tests/test_main.cpp"
   "${CMAKE_SOURCE_DIR}/tests/test_decode.cpp"
   "${CMAKE_SOURCE_DIR}/tests/test_cpu.cpp"
+  "${CMAKE_SOURCE_DIR}/tests/test_uart.cpp"
   "${CMAKE_SOURCE_DIR}/src/DECODE.cpp"
   "${CMAKE_SOURCE_DIR}/src/CPU.cpp"
   "${CMAKE_SOURCE_DIR}/src/BUS.cpp"
   "${CMAKE_SOURCE_DIR}/src/CONFIG.cpp"
   "${CMAKE_SOURCE_DIR}/src/UTILS.cpp"
+  "${CMAKE_SOURCE_DIR}/src/devices/CLINT.cpp"
+  "${CMAKE_SOURCE_DIR}/src/devices/UART.cpp"
 )
 
 target_include_directories(tests PRIVATE "${CMAKE_SOURCE_DIR}/include")
+target_include_directories(tests PRIVATE "${CMAKE_SOURCE_DIR}/include/devices")
 
 # ============================================================
 # Warnings

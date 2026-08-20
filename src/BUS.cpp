@@ -7,7 +7,7 @@ void BUS::addDevice(Device& dev) {
   devices.push_back(&dev);
 }
 
-u32 BUS::load(u32 address, BITSIZE size) const {
+u32 BUS::load(u32 address, u8 size) const {
   
   for(auto& dev : devices){
     u32 start = dev->get_start();
@@ -25,7 +25,7 @@ u32 BUS::load(u32 address, BITSIZE size) const {
   return -1;
 }
 
-void BUS::store(u32 address, BITSIZE size, u32 value) {
+void BUS::store(u32 address, u8 size, u32 value) {
     
   for(auto& dev : devices){
     u32 start = dev->get_start();

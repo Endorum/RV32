@@ -11,6 +11,57 @@
 #include "CONFIG.hpp"
 #include "DECODE.hpp"
 #include "UTILS.hpp"
+#include "CLINT.hpp"
+
+
+// interrupt bit not set
+enum class EXCEPTION_CODE : u32{
+  INSTR_ADDR_MISALIGNED = 0,
+  INSTR_ACCESS_FAULT    = 1,
+  ILLEGAL_INSTRUCTION   = 2,
+  BREAKPOINT            = 3,
+  LOAD_ADDR_MISALIGNED  = 4,
+  LOAD_ACCESS_FAULT     = 5,
+  STORE_ADDR_MISALIGNED = 6,
+  STORE_ACCESS_FAULT    = 7,
+  ECALL_FROM_U_MODE     = 8,
+  ECALL_FROM_S_MODE     = 9,
+  ECALL_FROM_M_MODE     = 11,
+  INSTR_PAGE_FAULT      = 12,
+  LOAD_PAGE_FAULT       = 13,
+  STORE_PAGE_FAULT      = 15,
+  DOUBLE_TRAP           = 16,
+  SOFTWARE_CHECK        = 18,
+  HARDWARE_ERROR        = 19,
+};
+
+// interrupt bit set
+enum class INTERRUPT_CODE : u32 {
+  SUP_SOFTWARE_INT    = 0x80000001,
+  MACH_SOFTWARE_INT   = 0x80000003,
+  SUP_TIMER_INT       = 0x80000005,
+  MACH_TIMER_INT      = 0x80000007,
+  SUP_EXT_INT         = 0x80000009,
+  MACH_EXT_INT        = 0x8000000B,
+  COUNT_OVERFLOW_INT  = 0x8000000D,
+};
+
+enum class ROUNDING_MODE : u8 {
+  INV, // invalid
+  RNE, // Round to nearest, ties to even
+  RTZ, // Round towards Zero
+  RDN, // Round Down (towards -\infty)
+  RUP, // Round Up (towards +\infty)
+  RMM, // Round to Nearest, ties to Max Magnitude
+  DYN, // In Instr.'s ->rm<- Field, selects dynamic rounding mode
+};
+
+enum PREC{
+  PREC_SINGLE = 0b00,
+  PREC_DOUBLE = 0b01,
+  PREC_HALF   = 0b10,
+  PREC_QUAD   = 0b11
+};
 
 
 class CPU{
@@ -21,11 +72,12 @@ public:
   void step();
 
   void attach_bus(BUS* b);
+  void attach_clint(CLINT* c);
 
   void set_config(const Config& c){ config = c; }
 
   std::string get_current_dis() { return current_dis; }
-  u32 get_cycle(){return cycle;}
+  u32 get_cycle(){ return get_csr(CSR_ADDR::mcycle); }
   std::string state_str();
 
   bool get_halted() { return halted; }
@@ -34,9 +86,9 @@ private:
   u32 regfile[32];
   u32 csr[4096];
   u32 pc;
-  u64 cycle;
 
   BUS* bus = nullptr;
+  CLINT* clint = nullptr;
 
   Config config;
 
@@ -45,6 +97,7 @@ private:
   u32 last_addr_used = 0x0;
   
   bool halted = false;
+  bool sleeping = false;
 
   u32 fcsr;
   u64 fregfile[32];
@@ -86,8 +139,8 @@ private:
   u32  get_csr(u16 idx) const;
   u32  get_csr(CSR_ADDR idx) const { return get_csr( static_cast<u16>(idx)); }
 
-  void store(u32 addr, BITSIZE size, u64 val);
-  u64  load(u32 addr, BITSIZE size);
+  void store(u32 addr, u8 size, u64 val);
+  u64  load(u32 addr, u8 size);
 
   u64 nanbox(u32 val);
 
@@ -130,9 +183,13 @@ private:
 
   bool is_snan_d(double d);
 
-  void enter_trap(u32 trap_addr, TRAP_CODE code, u32 tval);
+  void enter_exception(u32 addr, EXCEPTION_CODE code, u32 word);
+  void enter_interrupt(u32 addr, INTERRUPT_CODE code);
+  void enter_trap(u32 trap_addr, u32 code, u32 tval);
   void mret();
 };
+
+
 
 
 #endif // CPU_HPP

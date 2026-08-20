@@ -30,6 +30,8 @@ int main(int argc, char **argv) {
     return 1;
   } 
 
+  static struct termios orig_term;
+
 
   // build configuration based on CLI arguments
   Config config = parse_arguments(argc, argv);

@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "DEFS.hpp"
-#include "MAP.h"
+#include "MAP.hpp"
 
 std::string breakpoints_str(const std::vector<u32> &bp);
 
@@ -57,6 +57,12 @@ struct Config {
   u32 rom_size = ROM_SIZE;
   u32 hd_start = HD_START;
   u32 hd_size = HD_SIZE;
+
+  u32 clint_start = CLINT_START;
+  u32 clint_size = CLINT_SIZE;
+
+  u32 uart_start = UART_START;
+  u32 uart_size = UART_SIZE;
 };
 
 Config parse_arguments(int argc, char** argv);

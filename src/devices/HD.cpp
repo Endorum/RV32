@@ -29,7 +29,7 @@ void HD::setup_harddisk() {
 
 
 
-u32 HD::load(u32 addr, BITSIZE size) {
+u32 HD::load(u32 addr, u8 size) {
   delay();  
 
   u8 buf[4] = {};
@@ -46,7 +46,7 @@ u32 HD::load(u32 addr, BITSIZE size) {
   return value;
 }
 
-void HD::store(u32 addr, BITSIZE size, u32 value) {
+void HD::store(u32 addr, u8 size, u32 value) {
   delay();
 
   u8 buf[4];

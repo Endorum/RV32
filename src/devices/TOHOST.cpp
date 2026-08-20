@@ -1,10 +1,10 @@
 #include "TOHOST.hpp"
 
-u32 TOHOST::load(u32 addr, BITSIZE size) {
+u32 TOHOST::load(u32 addr, u8 size) {
   return u32();
 }
 
-void TOHOST::store(u32 addr, BITSIZE size, u32 value) {
+void TOHOST::store(u32 addr, u8 size, u32 value) {
   if((value & 0x1) == 0) return; // kein exit request
 
   if(value == 1){

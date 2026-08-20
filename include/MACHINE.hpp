@@ -2,17 +2,22 @@
 #define MACHINE_HPP
 
 #include <memory>
+#include <termios.h>
+#include <unistd.h>
 
 #include "BUS.hpp"
 #include "CONFIG.hpp"
 #include "CPU.hpp"
 #include "DEFS.hpp"
-#include "MAP.h"
+#include "MAP.hpp"
 
 #include "RAM.hpp"
 #include "ROM.hpp"
 #include "HD.hpp"
 #include "TOHOST.hpp"
+#include "CLINT.hpp"
+#include "UART.hpp"
+
 
 
 
@@ -30,17 +35,26 @@ public:
     // attach bus to cpu
     cpu.attach_bus(&bus);
 
+    // attach clint to cpu
+    cpu.attach_clint(&clint);
+
     // bus attachements order = priority eg tohost is inside of ram, needs to be
     // bevor ram so that the bus routes correctly
     // add devices
     bus.addDevice(rom);
     bus.addDevice(tohost);
     bus.addDevice(ram);
+    bus.addDevice(clint);
+    bus.addDevice(uart);
+    
 
     // only add harddrive if a path is given otherwise the space is simply not reachable
     if(!config.harddisk_path.empty()) bus.addDevice(hd);
 
+    init_terminal();
     
+    
+
   }
 
   void start();
@@ -54,7 +68,7 @@ public:
 
 private:
 
-  
+  void init_terminal();
 
   Config config;
   
@@ -65,6 +79,10 @@ private:
   RAM ram{config.ram_start, config.ram_size};
   HD  hd{config.hd_start, config.hd_size};
   TOHOST tohost{config.tohost_address, 0x100};
+  CLINT clint{config.clint_start, config.clint_size};
+
+  
+  UART uart{config.uart_start, config.uart_size};
   
 };
 
