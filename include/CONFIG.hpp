@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "DEFS.hpp"
-#include "MAP.hpp"
+#include "memory_map.h"
 
 std::string breakpoints_str(const std::vector<u32> &bp);
 

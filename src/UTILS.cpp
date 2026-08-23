@@ -13,25 +13,11 @@ template <typename ExceptionType> [[noreturn]] void Error(std::string msg) {
   throw exc;
 }
 
-// The template body lives in this .cpp, so every ExceptionType used from
-// other translation units must be explicitly instantiated here — otherwise
-// the linker has no symbol to find. (Alternative: move the definition into
-// UTILS.hpp and delete these.)
+
 template void Error<std::runtime_error>(std::string);
 template void Error<std::invalid_argument>(std::string);
 template void Error<std::out_of_range>(std::string);
 
-bool S_to_B(std::string str) {
-
-  std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-
-  if (str == "TRUE")
-    return true;
-  if (str == "FALSE")
-    return false;
-
-  Error<std::invalid_argument>("Could not convert '" + str + "' to boolean");
-}
 
 u32 extract_bits(u32 value, u32 min, u32 max) {
 

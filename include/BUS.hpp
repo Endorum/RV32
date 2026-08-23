@@ -12,6 +12,8 @@
 #include "DEVICE.hpp"
 #include "UTILS.hpp"
 
+
+
 class BUS {
 
 public:
@@ -19,6 +21,8 @@ public:
   ~BUS() = default;
 
   void addDevice(Device& dev);
+
+  Device* route(u32 address, u8 size) const;
 
   u32 load(u32 address, u8 size) const;
 

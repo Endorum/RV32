@@ -4,6 +4,8 @@
 #include "CONFIG.hpp"
 #include "DEVICE.hpp"
 #include "UTILS.hpp"
+#include "ERROR.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -20,8 +22,7 @@ public:
   u32 load(u32 address, u8 size) override;
 
   void store(u32 address, u8 size, u32 value) override {
-    // Error<std::invalid_argument>("ROM is read only!");
-    // raise error?
+    throw TrapException(EXCEPTION_CODE::STORE_ACCESS_FAULT, address);
   }
 
 private:

@@ -27,6 +27,9 @@ public:
   bool mtip() const { return mtime >= mtimecmp; }
   bool msip_pending() const { return msip & 1; }
 
+  u32 get_time_lo() const { return (u32)mtime; }
+  u32 get_time_hi() const { return (u32)(mtime >> 32); }
+
   u32 pending_mip() const {
     return 
       (mtip() ? MIP_MTIP : 0) | 

@@ -15,36 +15,7 @@
 
 
 // interrupt bit not set
-enum class EXCEPTION_CODE : u32{
-  INSTR_ADDR_MISALIGNED = 0,
-  INSTR_ACCESS_FAULT    = 1,
-  ILLEGAL_INSTRUCTION   = 2,
-  BREAKPOINT            = 3,
-  LOAD_ADDR_MISALIGNED  = 4,
-  LOAD_ACCESS_FAULT     = 5,
-  STORE_ADDR_MISALIGNED = 6,
-  STORE_ACCESS_FAULT    = 7,
-  ECALL_FROM_U_MODE     = 8,
-  ECALL_FROM_S_MODE     = 9,
-  ECALL_FROM_M_MODE     = 11,
-  INSTR_PAGE_FAULT      = 12,
-  LOAD_PAGE_FAULT       = 13,
-  STORE_PAGE_FAULT      = 15,
-  DOUBLE_TRAP           = 16,
-  SOFTWARE_CHECK        = 18,
-  HARDWARE_ERROR        = 19,
-};
 
-// interrupt bit set
-enum class INTERRUPT_CODE : u32 {
-  SUP_SOFTWARE_INT    = 0x80000001,
-  MACH_SOFTWARE_INT   = 0x80000003,
-  SUP_TIMER_INT       = 0x80000005,
-  MACH_TIMER_INT      = 0x80000007,
-  SUP_EXT_INT         = 0x80000009,
-  MACH_EXT_INT        = 0x8000000B,
-  COUNT_OVERFLOW_INT  = 0x8000000D,
-};
 
 enum class ROUNDING_MODE : u8 {
   INV, // invalid
@@ -63,6 +34,12 @@ enum PREC{
   PREC_QUAD   = 0b11
 };
 
+enum class PRIV_LEVEL : u8 {
+  USER       = 0b00, // U
+  SUPERVISOR = 0b01, // S
+  RESERVED   = 0b10, 
+  MACHINE    = 0b11  // M
+};
 
 class CPU{
 public:
@@ -81,6 +58,7 @@ public:
   std::string state_str();
 
   bool get_halted() { return halted; }
+  bool get_sleeping() { return sleeping; }
 
 private:
   u32 regfile[32];
@@ -102,9 +80,13 @@ private:
   u32 fcsr;
   u64 fregfile[32];
 
+  PRIV_LEVEL priv;
+
   // needed for atomic instrs. (A Ext.)
   u32 reservation_addr = 0;
   bool reservation_valid = false;
+
+  Instruction instr;
 
   u32 rs1_value;
   u32 rs2_value;
@@ -120,21 +102,11 @@ private:
   u64  get_freg(u8 idx);
   u32  get_freg_s(u8 idx);
 
-  void set_fcsr(u32 val);
-  u32 get_fcsr();
-
-  ROUNDING_MODE get_rm(const Instruction& instr);
-  
-  void fp_begin(ROUNDING_MODE mode);
-  void fp_end();
-
-  
-
-
   // mask for allowing and blocking csr writes
   u32 mask(u16 idx);
   void set_csr(u16 idx, u32 val);
   void set_csr(CSR_ADDR idx, u32 val) { set_csr(static_cast<u16>(idx), val); }
+  void set_csr_raw(CSR_ADDR idx, u32 val) { csr[(u16)idx] = val; }
   
   u32  get_csr(u16 idx) const;
   u32  get_csr(CSR_ADDR idx) const { return get_csr( static_cast<u16>(idx)); }
@@ -144,10 +116,9 @@ private:
 
   u64 nanbox(u32 val);
 
-  void invalid_op(const Instruction& instr);
-  void halt_if_deadlock(const Instruction& instr);
-  bool valid_target(u32 target, const Instruction& instr);
-  void execute(const Instruction& instr);
+  void halt_if_deadlock();
+  bool valid_target(u32 target);
+  void execute();
 
   u32 alu_sll(u32 a, u32 b);
   u32 alu_slt(u32 a, u32 b);
@@ -160,6 +131,11 @@ private:
   u32 alu_remu(u32 a, u32 b);
 
   // RV32F
+  ROUNDING_MODE get_rm();
+  
+  void fp_begin(ROUNDING_MODE mode);
+  void fp_end();
+
   u32 alu_classify_s(float v);
   i32 fcvt_w_s(float v);
   u32 fcvt_wu_s(float v);
@@ -186,7 +162,30 @@ private:
   void enter_exception(u32 addr, EXCEPTION_CODE code, u32 word);
   void enter_interrupt(u32 addr, INTERRUPT_CODE code);
   void enter_trap(u32 trap_addr, u32 code, u32 tval);
-  void mret();
+  void mret();  
+
+
+  /* RV32I */
+  void exec_alu();
+  void exec_load();
+  void exec_store();
+  void exec_branch();
+  void exec_jal();
+  void exec_jalr();
+  void exec_lui();
+  void exec_auipc();
+  void exec_fence();
+  void exec_system();
+
+  /* RV32A */
+  void exec_atomic();
+
+  /* RV32 FP */
+  void exec_load_fp();
+  void exec_store_fp();
+  void exec_fp_fused();
+  void exec_fp_alu_single();
+  void exec_fp_alu_double();
 };
 
 

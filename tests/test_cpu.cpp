@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "../include/CPU.hpp"
+#include "../include/ERROR.hpp"
 
 #include "test_common.hpp"
 
@@ -95,6 +96,131 @@ static void guarded(const char* name, Fn fn) {
   std::cerr.rdbuf(old);
 }
 
+// ------------------------------------------------------------ BUS routing
+//
+// Direct BUS-level checks (no program): the route() range test is the only
+// bounds check between guest addresses and device backing arrays, so it must
+// hold at the edges — including sums that would wrap in u32.
+
+// device pinned at the very top of the address space: start + size == 2^32
+// wraps to 0 in u32, so any sum-based range check can never match it.
+class TopRAM : public Device {
+public:
+  TopRAM() : Device(0xFFFFF000, 0x1000, "TopRAM") {}
+
+  u32 load(u32 address, u8 size) override {
+    u32 v = 0;
+    for (u32 i = 0; i < (u32)size; i++)
+      v |= (u32)mem[address + i] << (8 * i);
+    return v;
+  }
+
+  void store(u32 address, u8 size, u32 value) override {
+    for (u32 i = 0; i < (u32)size; i++)
+      mem[address + i] = (u8)(value >> (8 * i));
+  }
+
+private:
+  u8 mem[0x1000] = {};
+};
+
+// swallow addDevice's "Adding Device:" chatter
+static void add_device_quiet(BUS& bus, Device& dev) {
+  std::ostringstream sink;
+  std::streambuf* old = std::cout.rdbuf(sink.rdbuf());
+  bus.addDevice(dev);
+  std::cout.rdbuf(old);
+}
+
+static void test_bus_rejects_wrapping_access() {
+  guarded("bus wrap rejection", [] {
+    BUS bus;
+    TestRAM ram; // start 0x0, size 0x1000
+    add_device_quiet(bus, ram);
+
+    // last fully-contained word still routes
+    bus.store(0xFFC, WORD, 0xAABBCCDD);
+    CHECK_EQ(bus.load(0xFFC, WORD), 0xAABBCCDD);
+
+    // access crossing the device end must not match; unmapped loads/stores
+    // are guest-visible access faults now, with the matching cause code
+    bool threw = false;
+    try { bus.load(0xFFE, WORD); }
+    catch (const TrapException& t) { threw = (t.get_code() == EXCEPTION_CODE::LOAD_ACCESS_FAULT); }
+    CHECK(threw);
+
+    // first address past the device
+    threw = false;
+    try { bus.store(0x1000, BYTE, 1); }
+    catch (const TrapException& t) { threw = (t.get_code() == EXCEPTION_CODE::STORE_ACCESS_FAULT); }
+    CHECK(threw);
+
+    // the wrap case: address + size overflows u32 to 0 — used to falsely
+    // match the device at start 0 and index far outside its backing array
+    threw = false;
+    try { bus.store(0xFFFFFFFC, WORD, 1); }
+    catch (const TrapException& t) { threw = (t.get_code() == EXCEPTION_CODE::STORE_ACCESS_FAULT); }
+    CHECK(threw);
+
+    threw = false;
+    try { bus.load(0xFFFFFFFF, BYTE); }
+    catch (const TrapException& t) { threw = (t.get_code() == EXCEPTION_CODE::LOAD_ACCESS_FAULT); }
+    CHECK(threw);
+  });
+}
+
+static void test_bus_routes_top_of_address_space() {
+  guarded("bus top-of-space device", [] {
+    BUS bus;
+    TopRAM top;
+    add_device_quiet(bus, top);
+
+    // first byte and last word of the device must route
+    bus.store(0xFFFFF000, BYTE, 0x5A);
+    CHECK_EQ(bus.load(0xFFFFF000, BYTE), 0x5A);
+    bus.store(0xFFFFFFFC, WORD, 0x600DC0DE);
+    CHECK_EQ(bus.load(0xFFFFFFFC, WORD), 0x600DC0DE);
+
+    // access crossing 2^32 must not match
+    bool threw = false;
+    try { bus.load(0xFFFFFFFE, WORD); }
+    catch (const TrapException& t) { threw = (t.get_code() == EXCEPTION_CODE::LOAD_ACCESS_FAULT); }
+    CHECK(threw);
+  });
+}
+
+static void test_load_access_fault_reaches_handler() {
+  // End-to-end: a load from an unmapped address must arrive in the guest's
+  // trap handler as a LOAD_ACCESS_FAULT (mcause 5) with mtval = the faulting
+  // data address and mepc = the faulting instruction — not kill the emulator.
+  // This pins the TrapException plumbing (BUS throw -> step() catch ->
+  // enter_exception) at the architectural level.
+  guarded("load access fault to handler", [] {
+    BUS bus;
+    TestRAM ram; // 0x0..0x1000; 0x2000 is unmapped
+    run_program(bus, ram, {
+      0x04000293, // 0x00: addi t0, x0, 0x40
+      0x30529073, // 0x04: csrw mtvec, t0
+      0x00002337, // 0x08: lui  t1, 0x2        t1 = 0x2000
+      0x00032383, // 0x0C: lw   t2, 0(t1)      -> LOAD_ACCESS_FAULT
+      0x0000006F, // 0x10: j    +0             (never reached)
+      0x00000013, 0x00000013, 0x00000013, 0x00000013, // nop pad
+      0x00000013, 0x00000013, 0x00000013, 0x00000013,
+      0x00000013, 0x00000013, 0x00000013,
+      0x34202E73, // 0x40: csrr t3, mcause     <- trap handler
+      0x34302EF3, // 0x44: csrr t4, mtval
+      0x34102F73, // 0x48: csrr t5, mepc
+      0x21C02023, // 0x4C: sw   t3, 0x200(x0)
+      0x21D02223, // 0x50: sw   t4, 0x204(x0)
+      0x21E02423, // 0x54: sw   t5, 0x208(x0)
+      0x0000006F, // 0x58: j    +0
+    }, 12);
+    CHECK_EQ(bus.load(RESULT0, WORD), 5);      // mcause = load access fault
+    CHECK_EQ(bus.load(RESULT1, WORD), 0x2000); // mtval  = faulting address
+    CHECK_EQ(bus.load(RESULT2, WORD), 0x0C);   // mepc   = the lw itself
+  });
+}
+
 // ------------------------------------------------------------ ALU basics
 
 static void test_add() {
@@ -156,6 +282,42 @@ static void test_shift_amount_masked() {
       0x20702023, // sw   t2, 0x200(x0)
     }, 4);
     CHECK_EQ(bus.load(RESULT0, WORD), 2);
+  });
+}
+
+static void test_div_rem_special_cases() {
+  // The two spec-defined special rows of the M extension (RV32M, "division by
+  // zero and division overflow"): /0 yields DIV=-1, DIVU=2^32-1, REM(U)=dividend;
+  // overflow (-2^31 / -1) yields DIV=-2^31, REM=0. The overflow pair is signed-
+  // overflow UB in C++ — on ARM64 hosts sdiv happens to wrap to the correct
+  // value even without an explicit check, so a green check here does NOT prove
+  // the UB is handled; it pins the spec values and guards x86 hosts (idiv
+  // raises SIGFPE on this input, which would kill the run outright).
+  guarded("div/rem special cases", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x800002B7, // lui  t0, 0x80000       t0 = INT32_MIN
+      0xFFF00313, // addi t1, x0, -1
+      0x0262C3B3, // div  t2, t0, t1        overflow -> -2^31
+      0x0262EE33, // rem  t3, t0, t1        overflow -> 0
+      0x0202CEB3, // div  t4, t0, x0        /0 -> -1
+      0x0202EF33, // rem  t5, t0, x0        /0 -> dividend
+      0x0202DFB3, // divu t6, t0, x0        /0 -> 2^32-1
+      0x0202F333, // remu t1, t0, x0        /0 -> dividend
+      0x20702023, // sw   t2, 0x200(x0)
+      0x21C02223, // sw   t3, 0x204(x0)
+      0x21D02423, // sw   t4, 0x208(x0)
+      0x21E02623, // sw   t5, 0x20C(x0)
+      0x21F02823, // sw   t6, 0x210(x0)
+      0x20602A23, // sw   t1, 0x214(x0)
+    }, 14);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x80000000);
+    CHECK_EQ(bus.load(RESULT1, WORD), 0);
+    CHECK_EQ(bus.load(RESULT2, WORD), 0xFFFFFFFF);
+    CHECK_EQ(bus.load(0x20C, WORD), 0x80000000);
+    CHECK_EQ(bus.load(0x210, WORD), 0xFFFFFFFF);
+    CHECK_EQ(bus.load(0x214, WORD), 0x80000000);
   });
 }
 
@@ -832,6 +994,40 @@ static void test_mtvec_vectored_dispatch() {
     }, 32);
     CHECK_EQ(bus.load(RESULT0, WORD), 222); // timer vectored to slot 7
     CHECK_EQ(bus.load(RESULT1, WORD), 111); // ecall entered at base+0
+  });
+}
+
+static void test_mtvec_reserved_mode_is_warl_clamped() {
+  // mtvec.MODE is WARL: writing a reserved mode (2/3) must be accepted and
+  // silently clamped to a legal value at WRITE time — readback shows mode 0,
+  // base preserved — and the next trap must dispatch direct to base instead
+  // of crashing the emulator at trap entry.
+  guarded("mtvec warl clamp", [] {
+    BUS bus;
+    TestRAM ram;
+    run_program(bus, ram, {
+      0x04200393, // 0x00: addi  t2, x0, 0x42     base 0x40 | mode 2 (reserved)
+      0x30539073, // 0x04: csrw  mtvec, t2
+      0x30502373, // 0x08: csrr  t1, mtvec        readback
+      0x20602023, // 0x0C: sw    t1, 0x200(x0)    RESULT0 = clamped mtvec
+      0x00000073, // 0x10: ecall                  -> must go direct to 0x40
+      0x0000006F, // 0x14: j     +0
+      0x00000013, // 0x18: nop (filler up to the handler)
+      0x00000013, // 0x1C: nop
+      0x00000013, // 0x20: nop
+      0x00000013, // 0x24: nop
+      0x00000013, // 0x28: nop
+      0x00000013, // 0x2C: nop
+      0x00000013, // 0x30: nop
+      0x00000013, // 0x34: nop
+      0x00000013, // 0x38: nop
+      0x00000013, // 0x3C: nop
+      0x03700F13, // 0x40: addi  t5, x0, 55       <- trap handler
+      0x21E02223, // 0x44: sw    t5, 0x204(x0)    RESULT1 = 55
+      0x0000006F, // 0x48: j     +0
+    }, 7);
+    CHECK_EQ(bus.load(RESULT0, WORD), 0x40); // mode bits read back 0, base kept
+    CHECK_EQ(bus.load(RESULT1, WORD), 55);   // trap dispatched direct to base
   });
 }
 
@@ -2044,10 +2240,14 @@ static void test_mip_csr_is_computed() {
 // ---------------------------------------------------------------- entry
 
 void run_cpu_tests() {
+  test_bus_rejects_wrapping_access();
+  test_bus_routes_top_of_address_space();
+  test_load_access_fault_reaches_handler();
   test_add();
   test_sub_negative_and_sra();
   test_slt_signed_vs_unsigned();
   test_shift_amount_masked();
+  test_div_rem_special_cases();
   test_lb_sign_extension();
   test_lh_sign_extension();
   test_sb_touches_one_byte();
@@ -2079,6 +2279,7 @@ void run_cpu_tests() {
   test_wfi_timer_wake_traps();
   test_wfi_wakes_without_trap_when_mie_clear();
   test_mtvec_vectored_dispatch();
+  test_mtvec_reserved_mode_is_warl_clamped();
   test_flw_nan_boxing();
   test_fld_fsd_word_order();
   test_fsw_writes_four_bytes();

@@ -1,4 +1,5 @@
 #include "BUS.hpp"
+#include <ERROR.hpp>
 
 void BUS::addDevice(Device& dev) {
 
@@ -7,39 +8,58 @@ void BUS::addDevice(Device& dev) {
   devices.push_back(&dev);
 }
 
-u32 BUS::load(u32 address, u8 size) const {
+// returns the device accessed by the address, based on the memory configuration
+Device* BUS::route(u32 address, u8 size) const {
   
-  for(auto& dev : devices){
+  for(Device* dev : devices){
     u32 start = dev->get_start();
     u32 dev_size = dev->get_size();
 
-    if(start <= address && start + dev_size >= (address + (u8)size)){
-      return dev->load(address - start, size);
+    if(address >= start){
+      u32 offset = address - start; // relativ addr
+
+      if(offset < dev_size){
+        // address is within device
+
+        if(size <= dev_size - offset){
+          // rest of device is big enough for the requested size
+          return dev;
+        }
+
+      }
+
     }
 
   }
 
-  Error<std::out_of_range>(
-      std::format("Address: {:08X} - {:08X} not mapped", address, address + (u8)size));
+  return nullptr;
 
-  return -1;
+} 
+
+u32 BUS::load(u32 address, u8 size) const {
+  
+  Device* dev = route(address, size);
+
+  if(!dev){
+    throw TrapException(EXCEPTION_CODE::LOAD_ACCESS_FAULT, address);
+  }
+
+
+  u32 rel_addr = address - dev->get_start();
+  return dev->load(rel_addr, size);
+
 }
 
 void BUS::store(u32 address, u8 size, u32 value) {
     
-  for(auto& dev : devices){
-    u32 start = dev->get_start();
-    u32 dev_size = dev->get_size();
+  Device* dev = route(address, size);
 
-    if(start <= address && start + dev_size >= (address + (u8)size)){
-      dev->store(address - start, size, value);
-      return;
-    }
-
+  if(!dev){
+    throw TrapException(EXCEPTION_CODE::STORE_ACCESS_FAULT, address);
   }
 
-  Error<std::out_of_range>(
-      std::format("Address: {:08X} - {:08X} not mapped", address, address + (u8)size));
+  u32 rel_addr = address - dev->get_start();
+  dev->store(rel_addr, size, value);
 
 }
 

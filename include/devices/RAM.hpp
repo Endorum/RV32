@@ -4,7 +4,7 @@
 #include "CONFIG.hpp"
 #include "DEFS.hpp"
 #include "DEVICE.hpp"
-#include "MAP.hpp"
+#include "memory_map.h"
 #include "UTILS.hpp"
 #include <chrono>
 #include <memory>

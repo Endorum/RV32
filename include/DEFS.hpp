@@ -140,7 +140,36 @@
 #define DOUBLE 8
 
 
+enum class EXCEPTION_CODE : u32{
+  INSTR_ADDR_MISALIGNED = 0,
+  INSTR_ACCESS_FAULT    = 1,
+  ILLEGAL_INSTRUCTION   = 2,
+  BREAKPOINT            = 3,
+  LOAD_ADDR_MISALIGNED  = 4,
+  LOAD_ACCESS_FAULT     = 5,
+  STORE_ADDR_MISALIGNED = 6,
+  STORE_ACCESS_FAULT    = 7,
+  ECALL_FROM_U_MODE     = 8,
+  ECALL_FROM_S_MODE     = 9,
+  ECALL_FROM_M_MODE     = 11,
+  INSTR_PAGE_FAULT      = 12,
+  LOAD_PAGE_FAULT       = 13,
+  STORE_PAGE_FAULT      = 15,
+  DOUBLE_TRAP           = 16,
+  SOFTWARE_CHECK        = 18,
+  HARDWARE_ERROR        = 19,
+};
 
+// interrupt bit set
+enum class INTERRUPT_CODE : u32 {
+  SUP_SOFTWARE_INT    = 0x80000001,
+  MACH_SOFTWARE_INT   = 0x80000003,
+  SUP_TIMER_INT       = 0x80000005,
+  MACH_TIMER_INT      = 0x80000007,
+  SUP_EXT_INT         = 0x80000009,
+  MACH_EXT_INT        = 0x8000000B,
+  COUNT_OVERFLOW_INT  = 0x8000000D,
+};
 
 
 // register index

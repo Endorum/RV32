@@ -1,4 +1,5 @@
 #include "RAM.hpp"
+#include "ERROR.hpp"
 
 u32 RAM::load(u32 addr, u8 size) {
 

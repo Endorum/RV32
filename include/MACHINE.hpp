@@ -9,7 +9,7 @@
 #include "CONFIG.hpp"
 #include "CPU.hpp"
 #include "DEFS.hpp"
-#include "MAP.hpp"
+#include "memory_map.h"
 
 #include "RAM.hpp"
 #include "ROM.hpp"

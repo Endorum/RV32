@@ -29,7 +29,7 @@ void Machine::step() {
   uart.tick();
   
   if(config.debug) debug();
-  if(config.log) log();
+  if(config.log && !cpu.get_sleeping()) log();
 
 
 
