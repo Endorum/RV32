@@ -1,3 +1,7 @@
+#pragma once
+
+#include "stdint.h"
+#include "tf.h"
 
 enum EXCEPTION_CODE {
   INSTR_ADDR_MISALIGNED = 0,
@@ -29,7 +33,18 @@ enum INTERRUPT_CODE {
   COUNT_OVERFLOW_INT  = 0x8000000D,
 };
 
-void trap();
-void exc_handler(uint32_t cause, uint32_t word);
-void msi_handler();
-void mti_handler();
+typedef struct trap_frame {
+    uint32_t x[32];     // x[n] = register xn, x[0] stays unused
+    uint32_t mepc;      // Offset 32*4 = 128
+    uint32_t mstatus;   // Offset 33*4 = 132
+}trap_frame_t; // 136 Bytes -> round to 144 Bytes
+
+
+
+void trap(trap_frame_t* tf);
+void exc_handler(trap_frame_t* tf, uint32_t cause, uint32_t tval);
+void handle_ecall(trap_frame_t* tf, uint32_t cause);
+void msi_handler(trap_frame_t* tf);
+void mti_handler(trap_frame_t* tf);
+
+

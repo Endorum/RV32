@@ -1,4 +1,5 @@
 #include "memory_map.h"
+#include "ram_layout.h"
 #include "uart.h"
 
 #include "shell.h"
@@ -15,8 +16,6 @@ uint32_t pointer;
 uint32_t prev_pointer;
 
 uint32_t block_size = 512; // 128 bytes
-
-
 
 
 void set_pointer(uint32_t addr){
@@ -174,6 +173,22 @@ uint32_t parse_argument(const char* s, int* bytes){
     if(strcmp(s, "UART_START") == 0)  return UART_START;
     if(strcmp(s, "UART_SIZE") == 0)   return UART_SIZE;
     if(strcmp(s, "UART_END") == 0)    return UART_START + UART_SIZE;
+
+    if(strcmp(s, "RAM_FIRM_START") == 0)    return  RAM_FIRM_START;
+    if(strcmp(s, "RAM_FIRM_SIZE") == 0)     return   RAM_FIRM_SIZE;
+    if(strcmp(s, "RAM_FIRM_END") == 0)      return RAM_FIRM_START + RAM_FIRM_SIZE;
+
+    if(strcmp(s, "RAM_FREE_START") == 0)    return  RAM_FREE_START;
+    if(strcmp(s, "RAM_FREE_SIZE") == 0)     return   RAM_FREE_SIZE;
+    if(strcmp(s, "RAM_FREE_END") == 0)      return RAM_FREE_START + RAM_FREE_SIZE;
+
+    if(strcmp(s, "RAM_KERN_START") == 0)    return  RAM_KERN_START;
+    if(strcmp(s, "RAM_KERN_SIZE") == 0)     return   RAM_KERN_SIZE;
+    if(strcmp(s, "RAM_KERN_END") == 0)      return RAM_KERN_START + RAM_KERN_SIZE;
+
+    if(strcmp(s, "RAM_USER_START") == 0)    return  RAM_USER_START;
+    if(strcmp(s, "RAM_USER_SIZE") == 0)     return   RAM_USER_SIZE;
+    if(strcmp(s, "RAM_USER_END") == 0)      return RAM_USER_START + RAM_USER_SIZE;
     
     if(strcmp(s, ".") == 0) return pointer;
 
@@ -187,9 +202,24 @@ uint32_t parse_argument(const char* s, int* bytes){
     return parse_hex(s, bytes);
 }
 
-int shell(){
+void start_shell(trap_frame_t* tf){
+    kprintf("starting firmware shell\n");
+
+    set_pointer(RAM_START);
+
+    while(1){
+        
+        int code = shell(tf);
+
+        if(code > 0) 
+                break;
+
+    }
+}
+
+int shell(trap_frame_t* tf){
     // 1. print current pointer address
-    kprintf("%08X:> ", pointer);
+    kprintf("%08X>>", pointer);
 
     // 2. get user input
     char input[256];
@@ -211,7 +241,17 @@ int shell(){
 
     // dumps register contents as well as some other debug stuff
     if(strcmp(cmd, "regs") == 0){
-        dump();
+        if(!tf)
+            dump(); // if tf is not set, print the real registers
+        else{
+            kprintf("TRAP FRAME:\n");
+            for(int i=0;i<32;i++){
+                kprintf("\tx%d \t = \t 0x%x\n",i,tf->x[i]);
+            }
+
+            kprintf("mepc:    %08X\n", tf->mepc);
+            kprintf("mstatus: %08X\n",tf->mstatus);
+        }
     }
 
     // help
@@ -275,6 +315,7 @@ int shell(){
         if(argc == 2){
             if(arg1[0] == '*'){
                 uint32_t addr = read_word(pointer);
+                
                 set_pointer(addr);
             }
             else if(strcmp(arg1, "-") == 0){
@@ -299,7 +340,6 @@ int shell(){
                 arg1 += 1; // skip "
                 arg1[strlen(arg1)] = '\0'; // overwrite " with 0
 
-                kprintf("String %s\n", arg1);
                 
                 int i=0;
                 for(;i<strlen(arg1) + 1;i++){
@@ -309,10 +349,8 @@ int shell(){
                 set_pointer(pointer + i);
 
             }else{
-                int bytes;
-                uint32_t value = parse_argument(arg1, &bytes);
-                if (bytes == 0) kprintf("invalid address: %s\n", arg1);
-                if(bytes == 1){
+                uint32_t value = parse_argument(arg1, NULL);
+                if(value <= 0xFF){
                     write_byte(pointer, value);
                     set_pointer(pointer + 1); // move pointer behind writen word
                 }else{
@@ -391,6 +429,51 @@ int shell(){
             kprintf("Copied %d bytes\n", src_end - src_start);
 
         }
+    }
+
+    else if(strcmp(cmd, "map") == 0){
+        // prints the memory map including the RAM layout
+        // together with the available constants which 
+        // can be used instead of numbers
+        kprintf("Hardware: \n");
+        kprintf("ROM_START:         %08X\n", ROM_START);
+        kprintf("ROM_SIZE:          %08X\n", ROM_SIZE);
+        kprintf("ROM_END:           %08X\n", ROM_START + ROM_SIZE);
+        kprintf("HD_START:          %08X\n", HD_START);
+        kprintf("HD_SIZE:           %08X\n", HD_SIZE);
+        kprintf("HD_END:            %08X\n", HD_START + HD_SIZE);
+        kprintf("RAM_START:         %08X\n", RAM_START);
+        kprintf("RAM_SIZE:          %08X\n", RAM_SIZE);
+        kprintf("RAM_END:           %08X\n", RAM_START + RAM_SIZE);
+        kprintf("CLINT_START:       %08X\n", CLINT_START);
+        kprintf("CLINT_SIZE:        %08X\n", CLINT_SIZE);
+        kprintf("CLINT_END:         %08X\n", CLINT_START + CLINT_SIZE);
+        kprintf("UART_START:        %08X\n", UART_START);
+        kprintf("UART_SIZE:         %08X\n", UART_SIZE);
+        kprintf("UART_END:          %08X\n", UART_START + UART_SIZE);
+
+        kprintf("Ram sections: \n");
+        kprintf("RAM_FIRM_START:    %08X\n", RAM_FIRM_START);
+        kprintf("RAM_FIRM_SIZE:     %08X\n", RAM_FIRM_SIZE);
+        kprintf("RAM_FIRM_END:      %08X\n", RAM_FIRM_START + RAM_FIRM_SIZE);
+        kprintf("RAM_FREE_START:    %08X\n", RAM_FREE_START);
+        kprintf("RAM_FREE_SIZE:     %08X\n", RAM_FREE_SIZE);
+        kprintf("RAM_FREE_END:      %08X\n", RAM_FREE_START + RAM_FREE_SIZE);
+        kprintf("RAM_KERN_START:    %08X\n", RAM_KERN_START);
+        kprintf("RAM_KERN_SIZE:     %08X\n", RAM_KERN_SIZE);
+        kprintf("RAM_KERN_END:      %08X\n", RAM_KERN_START + RAM_KERN_SIZE);
+        kprintf("RAM_USER_START:    %08X\n", RAM_USER_START);
+        kprintf("RAM_USER_SIZE:     %08X\n", RAM_USER_SIZE);
+        kprintf("RAM_USER_END:      %08X\n", RAM_USER_START + RAM_USER_SIZE);
+    }
+
+    else if(strcmp(cmd, "clear") == 0){
+        kprintf("\033[2J");
+    }
+
+    else if(strcmp(cmd, "cont") == 0){
+        tf->mepc += 4;
+        asm volatile("mret");
     }
 
     else if(strcmp(cmd, "boot") == 0){

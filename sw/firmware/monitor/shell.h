@@ -1,4 +1,5 @@
 #include "stdint.h"
+#include "trap.h"
 
 /*
  * Monitor shell — inspired by Wozmon (MOS 6502).
@@ -48,4 +49,5 @@
 
 void set_pointer(uint32_t p);
 
-int shell();
+void start_shell(trap_frame_t* tf);
+int shell(trap_frame_t* tf);

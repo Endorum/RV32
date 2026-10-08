@@ -6,9 +6,29 @@
 #include "panic.h"
 #include "kstring.h"
 
-void boot_kernel() {
-    kprintf("Boot sequence...\n");
+
+__attribute__((noreturn))
+void enter_kernel(uint32_t entry, uint32_t hartid, uint32_t bootinfo){
+
+    csr_write(mepc, entry); // jump target
+
+    register uint32_t r_a0 asm("a0") = hartid;
+    register uint32_t r_a1 asm("a1") = bootinfo;
+
+    asm volatile(
+        "fence.i\n"
+        "mret\n"
+        :: "r"(r_a0), "r"(r_a1)
+    );
     
+    __builtin_unreachable();
+}
+
+void boot_kernel() {
+
+    kprintf("Boot sequence...\n");
+    kprintf("looking for kernel image at 0x%08X\n", HD_START);
+
     uint32_t magic = read_word(HD_START);
     kprintf("Magic: %08X\n", magic);
     
@@ -20,31 +40,29 @@ void boot_kernel() {
     uint32_t size  = read_word(HD_START + 4);
     kprintf("Kernel image size: %d Bytes\n", size);
 
-    if(size == 0 || size >= RAM_KERN_SIZE){
+    if(size == 0 || size > RAM_KERN_SIZE){
         kprintf("Kernel larger then RAM Section\n");
         return;
     }
 
-    kprintf("Loading Kernel Image...");
+    kprintf("Loading Kernel Image (%d Bytes)...", size);
     memcpy((void*)RAM_KERN_START, (void*)(HD_START + 8), size);   
     kprintf("Done\n");
 
     // kernel image is now loaded at RAM_KERN_START entry should be at RAM_KERN_START
     kprintf("Starting up\n");
-    // set mepc
-    csr_write(mepc, RAM_KERN_START);
+    
 
     // set MPP
     uint32_t s = csr_read(mstatus);
     s &= ~(3u << 11);   // del MPP
     s |=  (3u << 11);   // MPP = M
+    s &= ~(1u << 7);    // MPIE = 0 after mret MIE = 0
     csr_write(mstatus, s);
+    csr_write(mie, 0);
 
-    // set a0 = hart id = 0, a1 = boot info ptr = 0
-    WRITE_REG(a0, 0);
-    WRITE_REG(a1, 0);
+    uint32_t hartid = csr_read(mhartid);
 
-    // mret
-    asm volatile("mret"); // should jump to mepc = RAM_KERN_START
+    enter_kernel(RAM_KERN_START, hartid, 0);
 
 }   

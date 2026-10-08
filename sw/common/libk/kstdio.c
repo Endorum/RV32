@@ -1,7 +1,7 @@
 #include "kstdio.h"
 #include "uart.h"
 
-#include <stdint.h>
+#include "stdint.h"
 
 #include "kstring.h"
 
