@@ -472,8 +472,7 @@ int shell(trap_frame_t* tf){
     }
 
     else if(strcmp(cmd, "cont") == 0){
-        tf->mepc += 4;
-        asm volatile("mret");
+        return 1;
     }
 
     else if(strcmp(cmd, "boot") == 0){
