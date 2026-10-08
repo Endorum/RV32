@@ -1,0 +1,1 @@
+freestanding-C-replacement: memcpy, kprintf etc. -> knows no hardware

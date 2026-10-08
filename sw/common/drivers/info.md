@@ -1,0 +1,1 @@
+one folder for each device, device register defentions stay local
