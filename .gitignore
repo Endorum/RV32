@@ -1,7 +1,8 @@
+# macOS
 .DS_Store
+
+# all build output (every project builds into rv32/build/<project>)
 build/
 
-# Generated ROM artifacts (produced by build.sh from test.S)
-rom.elf
-rom.bin
-rom.asm
+# clangd index
+.cache/
