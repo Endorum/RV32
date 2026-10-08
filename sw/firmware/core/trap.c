@@ -1,12 +1,12 @@
 #include <stdint.h>
 
-#include "../../driver/uart/include/uart.h"
-#include "../../klib/include/kstdio.h"
-#include "../../arch/rv32/include/csr.h"
+#include "uart.h"
+#include "kstdio.h"
+#include "csr.h"
 
-#include "../include/arch.h"
-#include "../include/panic.h"
-#include "../include/trap.h"
+#include "arch.h"
+#include "panic.h"
+#include "trap.h"
 
 
 void trap(){

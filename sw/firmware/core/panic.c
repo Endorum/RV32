@@ -1,10 +1,10 @@
 
-#include "../../driver/uart/include/uart.h"
+#include "uart.h"
 
-#include "../include/panic.h"
-#include "../include/arch.h"
-#include "../../arch/rv32/include/csr.h"
-#include "../../klib/include/kstdio.h"
+#include "panic.h"
+#include "arch.h"
+#include "csr.h"
+#include "kstdio.h"
 
 #include "stdint.h"
 

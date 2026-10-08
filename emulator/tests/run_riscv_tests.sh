@@ -18,8 +18,8 @@
 # set -x
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EMU="$ROOT/build/main"
-ISA_DIR="${RISCV_TESTS:-$ROOT/../riscv-tests/isa}"
+EMU="$ROOT/../build/emulator/rv32emu"
+ISA_DIR="${RISCV_TESTS:-$ROOT/../../third_party/riscv-tests/isa}"
 OBJCOPY="${RISCV_PREFIX:-riscv64-elf-}objcopy"
 NM="${RISCV_PREFIX:-riscv64-elf-}nm"
 TIMEOUT_S=10

@@ -1,0 +1,14 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "RV32 emulator (host)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../build/emulator"
+    }
+  ],
+  "buildPresets": [
+    { "name": "default", "configurePreset": "default", "verbose": true }
+  ]
+}

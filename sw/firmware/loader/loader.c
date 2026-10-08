@@ -1,7 +1,8 @@
 #include "loader.h"
 #include "kstdio.h"
 #include "arch.h"
-#include "../../global/memory_map.h"
+#include "memory_map.h"
+#include "ram_layout.h"
 #include "panic.h"
 #include "kstring.h"
 

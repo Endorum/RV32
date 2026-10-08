@@ -1,6 +1,6 @@
-#include "../../global/memory_map.h"
+#include "memory_map.h"
 
-#include "../../driver/uart/include/uart.h"
+#include "uart.h"
 
 #include "kstdio.h"
 #include "shell.h"

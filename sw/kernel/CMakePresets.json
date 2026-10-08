@@ -1,0 +1,14 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "RV32 kernel (HD image)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../../build/kernel"
+    }
+  ],
+  "buildPresets": [
+    { "name": "default", "configurePreset": "default", "verbose": true }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "RV32 ISA test ROMs",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../../build/tests/isa"
+    }
+  ],
+  "buildPresets": [
+    { "name": "default", "configurePreset": "default", "verbose": true }
+  ]
+}

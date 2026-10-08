@@ -5,7 +5,7 @@ Input output stuff used by the firmware before Kernel loaded
 */
 #pragma once
 
-#include "../../global/memory_map.h"
+#include "memory_map.h"
 
 #include "stdarg.h"
 #include "stdint.h"

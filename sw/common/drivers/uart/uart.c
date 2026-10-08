@@ -1,6 +1,6 @@
 
-#include "../include/uart.h"
-#include "../../../global/memory_map.h"
+#include "uart.h"
+#include "memory_map.h"
 
 #include "stdint.h"
 

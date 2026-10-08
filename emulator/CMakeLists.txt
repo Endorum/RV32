@@ -1,5 +1,11 @@
 # ============================================================
-# RV32 — RISC-V RV32 emulator
+# RV32 — RISC-V RV32 emulator (the "hardware")
+#
+#   cmake --preset default                      configure -> rv32/build/emulator/
+#   cmake --build --preset default              build     -> rv32emu
+#   cmake --build --preset default -t tests     unit tests -> tests
+#
+# The memory map is shared with the software: platform/memory_map.h
 # ============================================================
 
 cmake_minimum_required(VERSION 3.20)
@@ -25,20 +31,24 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
 
 
-add_executable(main ${SOURCES})
+add_executable(rv32emu ${SOURCES})
 
 # ============================================================
 # Include paths
 # ============================================================
 
-target_include_directories(main PRIVATE "${CMAKE_SOURCE_DIR}/include")
-target_include_directories(main PRIVATE "${CMAKE_SOURCE_DIR}/include/devices")
+# platform/ = hardware contract shared with the software (memory_map.h)
+set(RV32_PLATFORM "${CMAKE_SOURCE_DIR}/../platform")
+
+target_include_directories(rv32emu PRIVATE "${CMAKE_SOURCE_DIR}/include")
+target_include_directories(rv32emu PRIVATE "${CMAKE_SOURCE_DIR}/include/devices")
+target_include_directories(rv32emu PRIVATE "${RV32_PLATFORM}")
 
 
 # ============================================================
 # Tests — separate target, not part of the normal build.
-#   build:  cmake --build build --target tests
-#   run:    ./build/tests
+#   build:  cmake --build --preset default --target tests
+#   run:    ../build/emulator/tests
 # Links only the modules under test (decoder + utils), so it
 # builds even while CPU.cpp is mid-rewrite.
 # ============================================================
@@ -62,6 +72,7 @@ add_executable(tests EXCLUDE_FROM_ALL
 
 target_include_directories(tests PRIVATE "${CMAKE_SOURCE_DIR}/include")
 target_include_directories(tests PRIVATE "${CMAKE_SOURCE_DIR}/include/devices")
+target_include_directories(tests PRIVATE "${RV32_PLATFORM}")
 
 # ============================================================
 # Warnings

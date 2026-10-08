@@ -12,7 +12,7 @@
 #include <string>
 
 #include "../include/BUS.hpp"
-#include "../include/memory_map.h"
+#include "memory_map.h"
 #include "../include/devices/UART.hpp"
 
 #include "test_common.hpp"

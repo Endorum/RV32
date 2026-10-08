@@ -1,5 +1,5 @@
 #include "arch.h"
-#include "../../arch/rv32/include/csr.h"
+#include "csr.h"
 #include "stdint.h"
 #include "kstdio.h"
 

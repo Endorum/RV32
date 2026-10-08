@@ -1,5 +1,5 @@
-#include "../include/kstdio.h"
-#include "../../driver/uart/include/uart.h"
+#include "kstdio.h"
+#include "uart.h"
 
 #include <stdint.h>
 

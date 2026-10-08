@@ -1,5 +1,5 @@
-#include "../../global/memory_map.h"
-#include "../../driver/uart/include/uart.h"
+#include "memory_map.h"
+#include "uart.h"
 
 #include "shell.h"
 #include "stdint.h"
