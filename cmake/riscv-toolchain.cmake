@@ -18,6 +18,8 @@ endif()
 
 set(CMAKE_C_COMPILER   "${RISCV_PREFIX}gcc")
 set(CMAKE_ASM_COMPILER "${RISCV_PREFIX}gcc")
+set(CMAKE_AR           "${RISCV_PREFIX}ar")
+set(CMAKE_RANLIB       "${RISCV_PREFIX}ranlib")
 set(CMAKE_OBJCOPY      "${RISCV_PREFIX}objcopy")
 set(CMAKE_OBJDUMP      "${RISCV_PREFIX}objdump")
 set(CMAKE_SIZE         "${RISCV_PREFIX}size")

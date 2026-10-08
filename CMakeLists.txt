@@ -29,7 +29,7 @@ function(rv32_part name source_dir binary_dir)
     SOURCE_DIR       "${CMAKE_CURRENT_SOURCE_DIR}/${source_dir}"
     BINARY_DIR       "${RV32_BUILD_ROOT}/${binary_dir}"
     CMAKE_GENERATOR  "${CMAKE_GENERATOR}"
-    BUILD_COMMAND    "${CMAKE_COMMAND}" --build <BINARY_DIR> --verbose
+    BUILD_COMMAND    "${CMAKE_COMMAND}" --build <BINARY_DIR>
     INSTALL_COMMAND  ""
     BUILD_ALWAYS     ON
     USES_TERMINAL_CONFIGURE ON

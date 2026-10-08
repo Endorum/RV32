@@ -9,6 +9,14 @@
     }
   ],
   "buildPresets": [
-    { "name": "default", "configurePreset": "default", "verbose": true }
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "verbose",
+      "configurePreset": "default",
+      "verbose": true
+    }
   ]
 }
