@@ -154,7 +154,21 @@ void CPU::exec_fence(){
 
 void CPU::exec_system(){
   if(instr.op == Op::ECALL){
-    enter_exception(instr.addr, EXCEPTION_CODE::ECALL_FROM_M_MODE, 0); //TODO: based on mode, currently only M mode
+    switch(priv){
+      default:
+        enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+        break;
+      case PRIV_LEVEL::USER:
+        enter_exception(instr.addr, EXCEPTION_CODE::ECALL_FROM_U_MODE, 0);
+        break;
+      case PRIV_LEVEL::SUPERVISOR:
+        enter_exception(instr.addr, EXCEPTION_CODE::ECALL_FROM_S_MODE, 0);
+        break;
+      case PRIV_LEVEL::MACHINE:
+        enter_exception(instr.addr, EXCEPTION_CODE::ECALL_FROM_M_MODE, 0);
+        break;
+    }
+    
   }
   
   else if(instr.op == Op::EBREAK){

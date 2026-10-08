@@ -19,7 +19,7 @@ u32 CPU::mask(u16 idx) {
     case CSR_ADDR::timeh:   return 0x00000000;
 
     case CSR_ADDR::mstatus: 
-      return MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS_MASK;
+      return MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS_MASK | MSTATUS_MPP_MASK;
 
 
   }
@@ -31,13 +31,16 @@ void CPU::set_csr(u16 idx, u32 val) {
   if(idx == (u16)(CSR_ADDR::fflags)){
     csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
     fcsr = (fcsr & ~0x1F) | (val & 0x1F);
-  }else if(idx == (u16)(CSR_ADDR::frm)){
+  }
+  else if(idx == (u16)(CSR_ADDR::frm)){
     csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
     fcsr = (fcsr & ~0xE0) | ((val & 0x7) << 5);
-  }else if(idx == (u16)(CSR_ADDR::fcsr)){
+  }
+  else if(idx == (u16)(CSR_ADDR::fcsr)){
     csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
     fcsr = (fcsr & ~0xFF) | (val & 0xFF);
-  }else if(idx == (u16)(CSR_ADDR::mtvec)){
+  }
+  else if(idx == (u16)(CSR_ADDR::mtvec)){
 
     if((val & 0x3) >= 2){ // invalid / unhandled interrup modes
       csr[idx] = (val & ~0x3); // write mode = 0 instead
@@ -45,9 +48,19 @@ void CPU::set_csr(u16 idx, u32 val) {
       csr[idx] = val;
     }
 
-  }
-  
+  }else if(idx == (u16)(CSR_ADDR::mstatus)){
+    // if MPP is = 2 -> invalid, keep old one
+    if(((u32)(val & MSTATUS_MPP_MASK) >> 11) == 0b10){
+      val = (val & ~MSTATUS_MPP_MASK);
+      csr[idx] = (val & m) | (csr[idx] & ~m);  
+    }
+    else{
+      csr[idx] = (val & m) | (csr[idx] & ~m);  
+    }
+  } 
+
   else{
+    
     csr[idx] = (val & m) | (csr[idx] & ~m);
   }
   

@@ -80,7 +80,8 @@ void CPU::step(){
   // check for clint interrupts
   u32 mip = clint->pending_mip();
   u32 pending = mip & get_csr(CSR_ADDR::mie);
-  if((get_csr(CSR_ADDR::mstatus) & MSTATUS_MIE) && pending){
+
+  if(((get_csr(CSR_ADDR::mstatus) & MSTATUS_MIE) || (priv < PRIV_LEVEL::MACHINE) ) && pending){
 
     // software (Bit 3) has priority before timer (Bit 7)
     if(pending & MIP_MSIP)      enter_interrupt(pc, INTERRUPT_CODE::MACH_SOFTWARE_INT);
@@ -167,7 +168,7 @@ void CPU::step(){
   }
 
   // if a TrapException has been thrown, enter exception
-  halt_if_deadlock();
+  halt_if_deadlock(); 
   
   // count cycles in the mcsr register
   set_csr(CSR_ADDR::mcycle, get_csr(CSR_ADDR::mcycle) + 1 );
@@ -217,7 +218,7 @@ std::string CPU::state_str() {
   out += std::format("LAST ADDRESS: \n\t{:08X}\n", last_addr_used);
 
   out += std::format("CSR: \n");
-  out += std::format("\tmstatus: {:08X}, mtvec: {:08X}, mepc: {:08X}, mcause: {:08X}, mtval: {:08X}, mscratch: {:08X}", 
+  out += std::format("\tmstatus: {:08X}, mtvec: {:08X}, mepc: {:08X}, mcause: {:08X}, mtval: {:08X}, mscratch: {:08X}\n", 
       get_csr(CSR_ADDR::mstatus), get_csr(CSR_ADDR::mtvec), get_csr(CSR_ADDR::mepc), get_csr(CSR_ADDR::mcause), get_csr(CSR_ADDR::mtval), get_csr(CSR_ADDR::mscratch));
 
   std::string priv_str[] = {"USER", "SUPERVISOR", "RESERVED", "MACHINE"};
@@ -257,6 +258,9 @@ u32 CPU::get_freg_s(u8 idx) {
   return (f >> 32) == 0xFFFFFFFF ? (u32)f : 0x7FC00000;
 }
 
+void CPU::set_mpp_priv(PRIV_LEVEL level) {
+  set_csr_raw(CSR_ADDR::mstatus, (get_csr(CSR_ADDR::mstatus) & ~(MSTATUS_MPP_MASK)) | (((u32)level) << 11) );
+}
 
 void CPU::store(u32 addr, u8 size, u64 val){
   if(!bus) Error<std::runtime_error>("BUS not assigned");
@@ -384,7 +388,7 @@ void CPU::execute(){
 
 void CPU::enter_exception(u32 addr, EXCEPTION_CODE code, u32 word){
   enter_trap(addr, (u32)code, word);
-}
+}       
 
 void CPU::enter_interrupt(u32 addr, INTERRUPT_CODE code){
   enter_trap(addr, (u32)code, 0); // interrupts always have tval = 0
@@ -392,7 +396,7 @@ void CPU::enter_interrupt(u32 addr, INTERRUPT_CODE code){
 
 void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
   set_csr_raw(CSR_ADDR::mepc, trap_addr);       // mepc <- addr of the ecall
-  set_csr_raw(CSR_ADDR::mcause, (u32)cause);    // 3: ebreak, 11: ecall Machine mode, 8: ecall User mode
+  set_csr_raw(CSR_ADDR::mcause, (u32)cause);    // 
   set_csr_raw(CSR_ADDR::mtval, tval);
 
   u32 mstatus = get_csr(CSR_ADDR::mstatus);
@@ -400,9 +404,11 @@ void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
   u32 mie = (mstatus >> 3) & 1;                         // aktuelles MIE
   mstatus = (mstatus & ~(MSTATUS_MPIE)) | (mie << 7);   // MPIE <- MIE
   mstatus &= ~(MSTATUS_MIE);                            // MIE <- 0 (handler läuft ungestört)
-  mstatus |= (MSTATUS_MPP_MASK);                        // MPP <- 3 (aus m-mode)
-
+  mstatus = (mstatus & ~(MSTATUS_MPP_MASK)) | (((u32)priv) << 11);  // MPP <- save current priv level
   set_csr_raw(CSR_ADDR::mstatus, mstatus);
+
+  // change priv level to machine for trap
+  priv = PRIV_LEVEL::MACHINE;
 
   u32 mtvec = get_csr(CSR_ADDR::mtvec);
 
@@ -431,11 +437,26 @@ void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
 }
 
 void CPU::mret() {
+  if(priv < PRIV_LEVEL::MACHINE){
+    enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+    return;
+  }
+
   u32 mstatus = get_csr(CSR_ADDR::mstatus);
   
   u32 mpie = (mstatus >> 7) & 1;                      // MIE herauslesen
   mstatus = (mstatus & ~(MSTATUS_MIE)) | (mpie << 3); // MIE <- MPIE wiederherstellen
   mstatus |= (MSTATUS_MPIE);                          // MPIE <- 1
+  mstatus = (mstatus & ~(MSTATUS_MPP_MASK)) | (MSTATUS_MPP_U); // set U mode in mpp (do nothing because u=0)
+
+  // get saved priv level bits
+  u8 pl = (mstatus & MSTATUS_MPP_MASK) >> 11;
+
+  // change priv level back to the old one
+  priv = (PRIV_LEVEL)(pl);
+  if(priv == PRIV_LEVEL::RESERVED){
+    enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+  }
 
   set_csr_raw(CSR_ADDR::mstatus, mstatus);
 

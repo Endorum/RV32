@@ -101,6 +101,7 @@ private:
   void set_freg(u8 idx, u64 val);
   u64  get_freg(u8 idx);
   u32  get_freg_s(u8 idx);
+  void set_mpp_priv(PRIV_LEVEL level);
 
   // mask for allowing and blocking csr writes
   u32 mask(u16 idx);
