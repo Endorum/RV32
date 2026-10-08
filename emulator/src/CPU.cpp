@@ -443,20 +443,26 @@ void CPU::mret() {
   }
 
   u32 mstatus = get_csr(CSR_ADDR::mstatus);
+
+  // get saved priv level bits and change priv level back to the old one
+  u8 pl = (mstatus & MSTATUS_MPP_MASK) >> 11;
+
+  if(priv == PRIV_LEVEL::RESERVED){
+    enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+    return;
+  }
+
+  priv = (PRIV_LEVEL)(pl);
   
   u32 mpie = (mstatus >> 7) & 1;                      // MIE herauslesen
   mstatus = (mstatus & ~(MSTATUS_MIE)) | (mpie << 3); // MIE <- MPIE wiederherstellen
   mstatus |= (MSTATUS_MPIE);                          // MPIE <- 1
   mstatus = (mstatus & ~(MSTATUS_MPP_MASK)) | (MSTATUS_MPP_U); // set U mode in mpp (do nothing because u=0)
 
-  // get saved priv level bits
-  u8 pl = (mstatus & MSTATUS_MPP_MASK) >> 11;
+  
 
-  // change priv level back to the old one
-  priv = (PRIV_LEVEL)(pl);
-  if(priv == PRIV_LEVEL::RESERVED){
-    enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
-  }
+  
+  
 
   set_csr_raw(CSR_ADDR::mstatus, mstatus);
 

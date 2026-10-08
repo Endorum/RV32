@@ -11,13 +11,6 @@ void Machine::start() {
   if(!config.harddisk_path.empty()) 
     hd.setup_harddisk();
 
-
-  // temp!! copy rom content to ram for spike test
-  for(int i=0;i<config.rom_size;i++){
-    u8 rom_b = rom.load(i, BYTE);
-    ram.store(i, BYTE, rom_b);
-  }
-
   cpu.reset();
 }
 

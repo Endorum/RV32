@@ -49,7 +49,7 @@ void CPU::set_csr(u16 idx, u32 val) {
     }
 
   }else if(idx == (u16)(CSR_ADDR::mstatus)){
-    // if MPP is = 2 -> invalid, keep old one
+    // if MPP is = 2 -> invalid
     if(((u32)(val & MSTATUS_MPP_MASK) >> 11) == 0b10){
       val = (val & ~MSTATUS_MPP_MASK);
       csr[idx] = (val & m) | (csr[idx] & ~m);  
