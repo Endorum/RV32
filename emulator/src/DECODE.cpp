@@ -1,6 +1,6 @@
-#include "../include/DECODE.hpp"
-#include "../include/UTILS.hpp"
-#include "../include/CPU.hpp"
+#include "DECODE.hpp"
+#include "UTILS.hpp"
+#include "CPU.hpp"
 
 BaseType get_type(u8 opcode){
   // just cast, check for invalid opcode somewhere else i guess

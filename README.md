@@ -8,7 +8,7 @@ and work on just that part.
 rv32/
 ├── platform/          hardware contract: memory_map.h (+ device registers)
 │                      used by the emulator AND the software
-├── emulator/          the machine (C++)            -> build/emulator/rv32emu
+├── emulator/          the machine (C++), RAD C++ project -> emulator/build/rv32emu
 ├── sw/
 │   ├── common/        shared by all software images, compiled into each one
 │   │   ├── abi/       firmware <-> kernel contract: ram_layout.h, boot image
@@ -39,7 +39,7 @@ of libk and the drivers.
 
 ## Build
 
-Each project (emulator, sw/firmware, sw/kernel, tests/isa):
+Each software project (sw/firmware, sw/kernel, tests/isa):
 
 ```sh
 cmake --preset default           # configure  -> rv32/build/<project>/
@@ -57,8 +57,13 @@ cmake --build --preset default   # emulator, firmware, kernel, ISA tests
 cmake --build --preset run       # ... and run
 ```
 
-Emulator checks: `cmake --build --preset default -t tests` in `emulator/`,
-then `../build/emulator/tests`; official suite: `emulator/tests/run_riscv_tests.sh`
+The emulator is a RAD C++ project: open `emulator/rv32emu.radcpp` in the IDE.
+`CMakeLists.txt` there is generated from it, hand additions go to `project.cmake`.
+From the terminal: `cmake -S emulator -B emulator/build -G Ninja`, then
+`cmake --build emulator/build`.
+
+Emulator checks: `cmake --build emulator/build -t tests`, then
+`emulator/build/tests`; official suite: `emulator/tests/run_riscv_tests.sh`
 (expects riscv-tests in `../third_party/riscv-tests`).
 
 Toolchain: Homebrew `riscv64-elf-*`; override with `RISCV_PREFIX=...`.

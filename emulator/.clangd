@@ -1,3 +1,0 @@
-# Point clangd at the CMake-generated compile database.
-# Run `cmake --preset default` once so it exists.
-CompilationDatabase: ../build/emulator

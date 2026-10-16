@@ -11,12 +11,12 @@
 #include "DEFS.hpp"
 #include "memory_map.h"
 
-#include "RAM.hpp"
-#include "ROM.hpp"
-#include "HD.hpp"
-#include "TOHOST.hpp"
-#include "CLINT.hpp"
-#include "UART.hpp"
+#include "devices/RAM.hpp"
+#include "devices/ROM.hpp"
+#include "devices/HD.hpp"
+#include "devices/TOHOST.hpp"
+#include "devices/CLINT.hpp"
+#include "devices/UART.hpp"
 
 
 

@@ -6,3 +6,6 @@ build/
 
 # clangd index
 .cache/
+
+# RAD C++: breakpoints/watches, written only by the IDE
+*.radcpp.user

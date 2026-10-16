@@ -35,7 +35,7 @@ get_filename_component(RV32_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(RV32_PLATFORM   "${RV32_ROOT}/platform")
 set(RV32_SW_COMMON  "${RV32_ROOT}/sw/common")
 set(RV32_BUILD_ROOT "${RV32_ROOT}/build")
-set(RV32_EMULATOR   "${RV32_BUILD_ROOT}/emulator/rv32emu")
+set(RV32_EMULATOR   "${RV32_ROOT}/emulator/build/rv32emu")   # RAD C++ project, builds in its own folder
 set(RV32_DISK_IMAGE "${RV32_BUILD_ROOT}/disk.img")
 set(RV32_MKIMAGE    "${RV32_ROOT}/tools/mkimage/mkimage.sh")
 

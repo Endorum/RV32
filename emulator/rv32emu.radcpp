@@ -1,0 +1,8 @@
+# RAD C++ project. This file is the source of truth; CMakeLists.txt is generated from it.
+name = "rv32emu"
+standard = "c++20"
+type = "console-cpp"
+
+[run]
+args = ["-firmware=../build/firmware/rom.bin", "-harddisk=../build/disk.img"]
+working_dir = "."

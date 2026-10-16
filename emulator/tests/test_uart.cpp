@@ -11,9 +11,9 @@
 #include <sstream>
 #include <string>
 
-#include "../include/BUS.hpp"
+#include "BUS.hpp"
 #include "memory_map.h"
-#include "../include/devices/UART.hpp"
+#include "devices/UART.hpp"
 
 #include "test_common.hpp"
 

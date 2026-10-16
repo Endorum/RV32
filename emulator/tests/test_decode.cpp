@@ -8,9 +8,9 @@
 
 #include <string>
 
-#include "../include/DECODE.hpp"
-#include "../include/CPU.hpp"
-#include "../include/UTILS.hpp"
+#include "DECODE.hpp"
+#include "CPU.hpp"
+#include "UTILS.hpp"
 
 #include "test_common.hpp"
 

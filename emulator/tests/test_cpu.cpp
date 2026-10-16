@@ -10,8 +10,8 @@
 #include <sstream>
 #include <vector>
 
-#include "../include/CPU.hpp"
-#include "../include/ERROR.hpp"
+#include "CPU.hpp"
+#include "ERROR.hpp"
 
 #include "test_common.hpp"
 

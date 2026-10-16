@@ -1,4 +1,4 @@
-#include "CLINT.hpp"
+#include "devices/CLINT.hpp"
 
 u32 CLINT::load(u32 addr, u8 size) {
   if(size != WORD) return 0;

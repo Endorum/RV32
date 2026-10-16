@@ -11,7 +11,7 @@
 #include "CONFIG.hpp"
 #include "DECODE.hpp"
 #include "UTILS.hpp"
-#include "CLINT.hpp"
+#include "devices/CLINT.hpp"
 
 
 // interrupt bit not set

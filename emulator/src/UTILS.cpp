@@ -2,7 +2,7 @@
 #include <format>
 #include <stdexcept>
 
-#include "../include/UTILS.hpp"
+#include "UTILS.hpp"
 
 template <typename ExceptionType> [[noreturn]] void Error(std::string msg) {
 

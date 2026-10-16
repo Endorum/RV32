@@ -2,7 +2,7 @@
 #include <thread>
 
 #include "UTILS.hpp"
-#include "HD.hpp"
+#include "devices/HD.hpp"
 
 
 void HD::setup_harddisk() {

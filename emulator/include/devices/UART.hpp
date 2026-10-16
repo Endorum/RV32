@@ -6,7 +6,7 @@
 #include "DEFS.hpp"
 #include "UTILS.hpp"
 
-#include "../../../platform/devices/uart16550.h"
+#include "devices/uart16550.h"
 
 #define RATE 4096
 

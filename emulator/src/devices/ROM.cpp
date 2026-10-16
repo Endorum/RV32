@@ -1,4 +1,4 @@
-#include "ROM.hpp"
+#include "devices/ROM.hpp"
 
 void ROM::load_firmware(){
   std::cout << "Loading firmware '" << get_config().firmware_path << "'...";

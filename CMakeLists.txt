@@ -8,7 +8,7 @@
 # This file only orchestrates. Every part is its own CMake project that can
 # be opened and built on its own (that's the normal way to work on it):
 #
-#   emulator/      host C++   -> build/emulator/rv32emu
+#   emulator/      host C++   -> emulator/build/rv32emu  (RAD C++ project)
 #   sw/firmware/   RISC-V     -> build/firmware/rom.bin
 #   sw/kernel/     RISC-V     -> build/kernel/kernel.bin + build/disk.img
 #   tests/isa/     RISC-V     -> build/tests/isa/<name>.bin
@@ -37,13 +37,24 @@ function(rv32_part name source_dir binary_dir)
     ${ARGN})
 endfunction()
 
-rv32_part(emulator  emulator     emulator)
+# The emulator is a RAD C++ project: its build folder is emulator/build,
+# the same one the IDE uses.
+ExternalProject_Add(emulator
+  SOURCE_DIR       "${CMAKE_CURRENT_SOURCE_DIR}/emulator"
+  BINARY_DIR       "${CMAKE_CURRENT_SOURCE_DIR}/emulator/build"
+  CMAKE_GENERATOR  "${CMAKE_GENERATOR}"
+  BUILD_COMMAND    "${CMAKE_COMMAND}" --build <BINARY_DIR>
+  INSTALL_COMMAND  ""
+  BUILD_ALWAYS     ON
+  USES_TERMINAL_CONFIGURE ON
+  USES_TERMINAL_BUILD     ON)
+
 rv32_part(firmware  sw/firmware  firmware)
 rv32_part(kernel    sw/kernel    kernel)
 rv32_part(isa_tests tests/isa    tests/isa)
 
 add_custom_target(run
-  COMMAND "${RV32_BUILD_ROOT}/emulator/rv32emu"
+  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/emulator/build/rv32emu"
           "-firmware=${RV32_BUILD_ROOT}/firmware/rom.bin"
           "-harddisk=${RV32_BUILD_ROOT}/disk.img"
   DEPENDS emulator firmware kernel

@@ -13,7 +13,7 @@
 #include "CONFIG.hpp"
 #include "CPU.hpp"
 #include "MACHINE.hpp"
-#include "ROM.hpp"
+#include "devices/ROM.hpp"
 #include "UTILS.hpp"
 
 void showUsage(std::string argv0) {

@@ -1,5 +1,5 @@
-#include "../include/CONFIG.hpp"
-#include "../include/UTILS.hpp"
+#include "CONFIG.hpp"
+#include "UTILS.hpp"
 
 Config parse_arguments(int argc, char** argv){
   Config config;

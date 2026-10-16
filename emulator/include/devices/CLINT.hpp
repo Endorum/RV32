@@ -6,7 +6,7 @@
 #include "DEFS.hpp"
 #include "UTILS.hpp"
 
-#include "../../../platform/devices/clint.h"
+#include "devices/clint.h"
 
 
 
