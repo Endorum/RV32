@@ -1,4 +1,5 @@
 #include "MACHINE.hpp"
+#include <csignal>
 
 
 
@@ -57,6 +58,12 @@ static void restore_terminal(){
   tcsetattr(STDIN_FILENO, TCSANOW, &orig_term);
 }
 
+// Ctrl-C / kill skip atexit, so restore the terminal here too (tcsetattr is async-signal-safe)
+static void restore_terminal_and_exit(int sig){
+  restore_terminal();
+  _exit(128 + sig);
+}
+
 // disable canonical terminal mode, usally it echoes every byte and waits for enter
 // for the uart we want it to read the input immediatly and not echo it back
 void Machine::init_terminal() {
@@ -67,6 +74,8 @@ void Machine::init_terminal() {
   raw.c_lflag &= ~(ICANON | ECHO);
   tcsetattr(STDIN_FILENO, TCSANOW, &raw);
   atexit(restore_terminal); // after an exit, restore terminal is called
+  signal(SIGINT, restore_terminal_and_exit);
+  signal(SIGTERM, restore_terminal_and_exit);
 }
 
 void Machine::reset() {
