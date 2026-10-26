@@ -1,0 +1,4 @@
+# clangd only (the build uses riscv64-elf-gcc): clangd cannot tell the target from the
+# GCC path and would check the code as macOS/arm64, where -march=rv32g / -mabi=ilp32 are invalid.
+CompileFlags:
+  Add: [--target=riscv32-unknown-elf]
