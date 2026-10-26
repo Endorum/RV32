@@ -9,3 +9,6 @@ build/
 
 # RAD C++: breakpoints/watches, written only by the IDE
 *.radcpp.user
+
+# git worktrees
+.worktrees/
