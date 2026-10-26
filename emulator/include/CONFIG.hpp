@@ -32,7 +32,8 @@ struct Config {
   std::string str() {
     return " DEBUG: " + std::to_string(debug) +
            " LOG: " + std::to_string(log) +
-           " STEP: " + std::to_string(step) + "\n" + " breakpoints: \n" +
+           " STEP: " + std::to_string(step) +
+           " HEADLESS: " + std::to_string(headless) + "\n" + " breakpoints: \n" +
            breakpoints_str(breakpoints) + "\n" +
            " Firmware: " + firmware_path + "\n Harddisk: " + harddisk_path +
            "\n Removable: " + removable_path + "\n";
@@ -41,6 +42,7 @@ struct Config {
   bool debug = false;
   bool log = false;
   bool step = false;
+  bool headless = false;  // no window, UART on stdout/stdin
 
   std::vector<u32> breakpoints;
 

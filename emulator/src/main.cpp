@@ -3,6 +3,7 @@
 #include <string>
 
 #include "CONFIG.hpp"
+#include "MACHINE.hpp"
 #include "MainForm.hpp"
 #include "radcpp_skin.hpp"
 
@@ -15,6 +16,7 @@ static void showUsage(const std::string& argv0)
         << "  -d                    enable debug output\n"
         << "  -l                    enable logging\n"
         << "  -s                    single-step execution\n"
+        << "  -headless             no window, run in the console (UART on stdout/stdin)\n"
         << "\n"
         << "Files:\n"
         << "  -firmware=<path>      firmware image loaded into ROM\n"
@@ -33,8 +35,31 @@ static void showUsage(const std::string& argv0)
         << "  " << argv0 << " -firmware=fw.bin -reset_vector=0x80000000 -b=0x80000010 -d\n";
 }
 
+// the console emulator from before the GUI: no window, UART output goes to stdout
+static int runHeadless(int argc, char* argv[])
+{
+    Config config = parse_arguments(argc, argv);
+    std::cout << "Configuration: \n" << config.str() << std::endl;
+
+    Machine machine(config);
+    machine.start();
+    while (!machine.halted()) {
+        machine.step();
+        std::cout << machine.uart_output() << std::flush;   // the UART buffers since the GUI
+    }
+    return 0;
+}
+
 int main(int argc, char* argv[])
 {
+    if (argc < 2) {
+        showUsage(argv[0]);
+        return 1;
+    }
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "-headless") return runHeadless(argc, argv);
+    }
+
     QApplication app(argc, argv);   // takes Qt's own options out of argc/argv, the emulator's stay
     if (argc < 2) {
         showUsage(argv[0]);

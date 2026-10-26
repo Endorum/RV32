@@ -11,6 +11,8 @@ Config parse_arguments(int argc, char** argv){
       config.log = true;
     }else if(arg == "s"){
       config.step = true;
+    }else if(arg == "headless"){
+      config.headless = true;
     }else{
       
       std::string left_side;
