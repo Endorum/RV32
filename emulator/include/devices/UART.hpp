@@ -1,6 +1,9 @@
 #ifndef UART_HPP
 #define UART_HPP
 
+#include <deque>
+#include <string>
+
 #include "DEVICE.hpp"
 #include "CONFIG.hpp"
 #include "DEFS.hpp"
@@ -23,10 +26,12 @@ public:
   void tick();
 
   void push_rx(u8 b);
+  
+  std::string take_tx();
 
 private:
   std::deque<u8> rx;
-
+  std::string tx;
 
   u8 IER = 0x00;
   u8 IIR = 0x01;

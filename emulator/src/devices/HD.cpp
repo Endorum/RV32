@@ -24,6 +24,7 @@ void HD::setup_harddisk() {
     Error<std::runtime_error>("Could not open harddisk file: '" +
                               filepath + "'");
 
+  setup = true;
   std::cout << "Done!" << std::endl;
 }
 

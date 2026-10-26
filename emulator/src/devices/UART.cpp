@@ -46,12 +46,13 @@ void UART::store(u32 addr, u8 size, u32 value) {
   if(addr == THR_ADDR) {
     
     if(LCR & 0x80){ // DLAB=1
+
       DLL = value;
       return;
     }
-
-    std::cout.put(char(value));
-    std::cout.flush();
+    tx.push_back(char(value));
+    // std::cout.put(char(value));
+    // std::cout.flush();
   }
 
   if(addr == IER_ADDR) { 
@@ -98,4 +99,13 @@ void UART::tick() {
 
 void UART::push_rx(u8 b) {
   rx.push_back(b);
+}
+
+// returns everything since the last tick
+std::string UART::take_tx() {
+    
+    std::string out;
+    out.swap(tx);
+    
+    return out;
 }

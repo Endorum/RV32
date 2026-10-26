@@ -41,6 +41,23 @@ enum class PRIV_LEVEL : u8 {
   MACHINE    = 0b11  // M
 };
 
+
+// copy of registers used for dump
+struct CPU_STATE{
+    uint32_t regfile[32];
+    uint32_t csr[4096];
+    uint32_t pc;
+    
+    uint32_t fcsr;
+    uint64_t fregfile[32];
+    
+    uint32_t cycle;
+
+    PRIV_LEVEL priv;
+    
+    std::string current_dis;
+};
+
 class CPU{
 public:
   CPU() = default;
@@ -54,11 +71,14 @@ public:
   void set_config(const Config& c){ config = c; }
 
   std::string get_current_dis() { return current_dis; }
+  std::string get_current_instr() { return disassemble(instr, false); }
   u32 get_cycle(){ return get_csr(CSR_ADDR::mcycle); }
   std::string state_str();
 
   bool get_halted() { return halted; }
   bool get_sleeping() { return sleeping; }
+  
+  CPU_STATE get_state();
 
 private:
   u32 regfile[32];

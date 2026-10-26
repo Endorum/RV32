@@ -21,10 +21,14 @@ public:
   void store(u32 addr, u8 size, u32 value) override;  
 
   void setup_harddisk();
+  
+  bool was_setup() const { return setup; }
 
 private:
   std::string filepath;
   std::fstream file;
+
+  bool setup = false;
 
   u32 delay_mus = 100;
   void delay();

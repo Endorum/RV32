@@ -2,6 +2,7 @@
 #define MACHINE_HPP
 
 #include <memory>
+#include <string>
 #include <termios.h>
 #include <unistd.h>
 
@@ -63,9 +64,23 @@ public:
   bool halted();
 
   // minimal debug, show single disass line
+  CPU_STATE get_cpu_state() {return cpu.get_state(); }
+  std::string curr_instr() { return cpu.get_current_instr(); }
   void log();
   void debug();
-
+  
+  void reset();
+  
+  std::string uart_output(){
+      return uart.take_tx();
+  }
+  
+  void uart_input(const std::string& s) {
+      for (char c : s){
+          uart.push_rx(u8(c));
+      }
+  }
+ 
 private:
 
   void init_terminal();

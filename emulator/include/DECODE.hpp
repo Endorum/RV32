@@ -231,7 +231,7 @@ i32 get_immediate(Format fmt, u32 word);
 Op get_op(const Instruction& instr);
 std::string get_mnemonic(const Op& op);
 Instruction decode(u32 word, u32 addr);
-std::string disassemble(const Instruction& instr);
+std::string disassemble(const Instruction& instr, bool showBytes=true);
 void validate(Instruction& instr);
 
 #endif // DECODE_HPP

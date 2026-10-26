@@ -470,4 +470,28 @@ void CPU::mret() {
   
 }
 
+CPU_STATE CPU::get_state() {
+    CPU_STATE state;
+    
+    for(int i=0;i<32;i++){
+        state.regfile[i] = regfile[i];
+        state.fregfile[i] = regfile[i];
+    }
+    
+    for(int i=0;i<4096;i++){
+        state.csr[i] = csr[i];
+    }
+    
+    state.cycle = get_cycle();
+    
+    state.pc = pc;
+    
+    state.fcsr = fcsr;
+    
+    state.priv = priv;
+    
+    state.current_dis = get_current_dis();
+    
+    return state;
+}
 

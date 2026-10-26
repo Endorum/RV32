@@ -526,8 +526,13 @@ std::string format_operands(const Instruction& instr){
 
 }
 
-std::string disassemble(const Instruction& instr){
+std::string disassemble(const Instruction& instr, bool showBytes){
   std::string mnemonic = get_mnemonic(instr.op);
-  return std::format("{:08X}: {:08X}    {:<8}{}", instr.addr, instr.word, mnemonic, format_operands(instr));
+  if(showBytes){
+    return std::format("{:08X}: {:08X}    {:<8}{}", instr.addr, instr.word, mnemonic, format_operands(instr));      
+  }else{
+    return std::format("{:<8}{}", mnemonic, format_operands(instr));        
+  } 
+
 
 }

@@ -6,12 +6,7 @@ void Machine::start() {
 
   std::cout << "Start..." << std::endl;
 
-  rom.load_firmware();
-
-  if(!config.harddisk_path.empty()) 
-    hd.setup_harddisk();
-
-  cpu.reset();
+  reset();
 }
 
 
@@ -72,4 +67,17 @@ void Machine::init_terminal() {
   raw.c_lflag &= ~(ICANON | ECHO);
   tcsetattr(STDIN_FILENO, TCSANOW, &raw);
   atexit(restore_terminal); // after an exit, restore terminal is called
+}
+
+void Machine::reset() {
+    
+    std::cout << "\n\nMACHINE RESET\n\n" << std::endl;
+    
+    rom.load_firmware();
+
+    if(!config.harddisk_path.empty() && !hd.was_setup())
+      hd.setup_harddisk();
+
+    cpu.reset();
+    
 }
