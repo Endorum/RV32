@@ -4,7 +4,7 @@
 #
 #   mkimage.sh <kernel.bin> <disk.img>
 #
-# Disk layout (boot contract, see sw/common/abi/info.md):
+# Disk layout (boot contract, see software/src/common/abi/info.md):
 #   HD + 0   magic  "RVOS"  bytes 52 56 4F 53  (read_word -> 0x534F5652)
 #   HD + 4   size of the kernel image in bytes, 32 bit little endian
 #   HD + 8   kernel image  -> copied by the firmware to RAM_KERN_START

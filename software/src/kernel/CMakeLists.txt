@@ -1,27 +1,18 @@
 # ============================================================
 # RV32 kernel -- loaded by the firmware from the HD into RAM_KERN_START
 #
-#   cmake --preset default            configure  -> rv32/build/kernel/
-#   cmake --build --preset default    build      -> kernel.bin, kernel.elf, dis/ ...
-#                                     and rv32/build/disk.img (header + kernel.bin)
+# Built as part of software/ (RAD C++ or `cmake --preset default` there):
+#   software/build/kernel/   kernel.bin, kernel.elf, dis/ ...
+#   software/build/disk.img  header + kernel.bin, what the firmware boots
 #
-# Every subfolder of sw/kernel/ is a module: its *.c / *.S are compiled and
-# it is an include path. Add e.g. sw/kernel/boot/ with a _start in
+# Every subfolder of src/kernel/ is a module: its *.c / *.S are compiled and
+# it is an include path. Add e.g. src/kernel/boot/ with a _start in
 # .section .text.init and it builds. As long as there are no sources the
 # image is skipped.
 #
-# Sees: platform/ (hardware), sw/common/ (abi, libk, drivers, arch) and
+# Sees: platform/ (hardware), src/common/ (abi, libk, drivers, arch) and
 # itself. Never the firmware.
 # ============================================================
-
-cmake_minimum_required(VERSION 3.20)
-
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/../../cmake/riscv-toolchain.cmake"
-    CACHE FILEPATH "RISC-V cross toolchain")
-
-project(rv32_kernel LANGUAGES C ASM)
-
-include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/rv32-image.cmake")
 
 # every non-hidden subfolder is a module
 file(GLOB children LIST_DIRECTORIES true CONFIGURE_DEPENDS
@@ -36,7 +27,7 @@ endforeach()
 if(NOT kernel_modules)
   message(STATUS "")
   message(STATUS "==== image 'kernel' ====")
-  message(STATUS "  -> no module folders in sw/kernel/ yet, nothing to build")
+  message(STATUS "  -> no module folders in src/kernel/ yet, nothing to build")
   add_custom_target(kernel_empty ALL
     COMMAND "${CMAKE_COMMAND}" -E echo "[kernel] no sources yet -- disk.img not touched")
   return()

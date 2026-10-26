@@ -1,0 +1,8 @@
+# RAD C++ project. This file is the source of truth; CMakeLists.txt is written by hand (cross build).
+name = "software"
+standard = "c17"
+type = "console-c"
+
+[run]
+args = []
+working_dir = "."

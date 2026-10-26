@@ -3,9 +3,9 @@
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "RV32 firmware (ROM)",
+      "displayName": "RV32 software (firmware + kernel)",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/../../build/firmware"
+      "binaryDir": "${sourceDir}/build"
     }
   ],
   "buildPresets": [
@@ -19,11 +19,6 @@
       "targets": [
         "run"
       ]
-    },
-    {
-      "name": "verbose",
-      "configurePreset": "default",
-      "verbose": true
     }
   ]
 }

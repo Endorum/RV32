@@ -1,16 +1,16 @@
 # ============================================================
-# rv32_image() -- build one bootable RV32 image (firmware, kernel, test ROM)
+# rv32_image() -- build one bootable RV32 image (firmware, kernel)
 #
 # Every image is linked on its own: it gets its own copy of libk/drivers,
 # its own linker script and only the include paths it lists. Two images never
 # share code or symbols -- they only share the contracts in platform/ and
-# sw/common/abi/.
+# src/common/abi/.
 #
 #   rv32_image(<name>
 #     LINKER_SCRIPT <file.ld.S>  preprocessed with cpp -> <name>.ld
 #     MODULES  <dir>...          the image's own code: every *.c / *.S is
 #                                compiled and linked in
-#     LIBS     <dir>...          shared code (sw/common/...): compiled into a
+#     LIBS     <dir>...          shared code (src/common/...): compiled into a
 #                                static library <name>_libs.a -- the linker
 #                                only pulls in the files whose symbols the
 #                                image actually uses
@@ -18,7 +18,7 @@
 #   )
 #   Every MODULES / LIBS dir is also an include path.
 #
-# Outputs, all in the project's build dir (rv32/build/<project>/):
+# Outputs, all in the image's build dir (software/build/<firmware|kernel>/):
 #   <name>.elf            linked ELF (with debug info)
 #   <name>.bin            flat binary, what the emulator / disk image gets
 #   <name>.map            link map (where every symbol/section landed)
@@ -30,12 +30,12 @@
 
 include_guard(GLOBAL)
 
-# ---- paths shared by every project -------------------------------------
-get_filename_component(RV32_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
-set(RV32_PLATFORM   "${RV32_ROOT}/platform")
-set(RV32_SW_COMMON  "${RV32_ROOT}/sw/common")
+# ---- paths -------------------------------------------------------------
+get_filename_component(RV32_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)   # software/
+get_filename_component(RV32_PLATFORM "${RV32_ROOT}/../platform" ABSOLUTE)
+set(RV32_SW_COMMON  "${RV32_ROOT}/src/common")
 set(RV32_BUILD_ROOT "${RV32_ROOT}/build")
-set(RV32_EMULATOR   "${RV32_ROOT}/emulator/build/rv32emu")   # RAD C++ project, builds in its own folder
+get_filename_component(RV32_EMULATOR "${RV32_ROOT}/../emulator/build/rv32emu" ABSOLUTE)   # RAD C++ project, builds in its own folder
 set(RV32_DISK_IMAGE "${RV32_BUILD_ROOT}/disk.img")
 set(RV32_MKIMAGE    "${RV32_ROOT}/tools/mkimage/mkimage.sh")
 
@@ -53,7 +53,7 @@ set(RV32_C_FLAGS
   -fno-inline
 )
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # for VS Code / clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # for clangd
 
 function(_rv32_rel out path)
   file(RELATIVE_PATH rel "${RV32_ROOT}" "${path}")
