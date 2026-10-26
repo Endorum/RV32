@@ -1,0 +1,25 @@
+# RAD C++ project. This file is the source of truth; CMakeLists.txt is generated from it.
+name = "rv32emu-qt"
+standard = "c++23"
+type = "qt-widgets"
+
+[run]
+args = ["-firmware=../build/firmware/rom.bin", "-harddisk=../build/disk.img"]
+working_dir = "."
+
+[skin]
+accent = "#3d6df2"
+border = 1
+button_radius = -1
+buttons = "outline"
+dark = true
+density = "normal"
+field_radius = -1
+fields = "box"
+font_family = "Helvetica Neue"
+font_size = 13
+preset = "Clean Dark"
+radius = 6
+
+[[libraries]]
+id = "radcpp-components"
