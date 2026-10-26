@@ -1,7 +1,7 @@
 # macOS
 .DS_Store
 
-# all build output (every project builds into rv32/build/<project>)
+# build output (each project builds into its own build/)
 build/
 
 # clangd index

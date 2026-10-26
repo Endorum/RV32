@@ -1,69 +1,70 @@
 # RV32 stack
 
-A RISC-V RV32 machine built from scratch: emulator ("hardware"), firmware,
-kernel. Every part is its own CMake project — open the folder in VS Code
-and work on just that part.
+A RISC-V RV32 machine built from scratch: the emulator ("hardware") and the
+software that runs on it (firmware, kernel). Two RAD C++ projects, one shared
+hardware contract.
 
 ```
 rv32/
-├── platform/          hardware contract: memory_map.h (+ device registers)
+├── platform/          hardware contract: memory_map.h, device registers
 │                      used by the emulator AND the software
-├── emulator/          the machine (C++), RAD C++ project -> emulator/build/rv32emu
-├── sw/
-│   ├── common/        shared by all software images, compiled into each one
-│   │   ├── abi/       firmware <-> kernel contract: ram_layout.h, boot image
-│   │   ├── libk/      freestanding C library (string, printf)
-│   │   ├── drivers/   device drivers (uart)
-│   │   └── arch/rv32/ csr.h
-│   ├── firmware/      ROM image, M-mode, monitor shell + kernel loader
-│   │                                               -> build/firmware/rom.bin
-│   └── kernel/        loaded from the HD into RAM  -> build/kernel/kernel.bin
-│                                                      build/disk.img
-├── tests/isa/         CPU instruction tests (bare ROMs) -> build/tests/isa/
-├── tools/mkimage/     kernel.bin -> disk.img (magic + size header)
-└── cmake/             toolchain file + rv32_image() shared by all sw projects
+├── emulator/          the machine, Qt app       -> emulator/build/rv32emu
+└── software/          RISC-V cross build        -> software/build/
+    ├── cmake/         toolchain file + rv32_image()
+    ├── tools/mkimage/ kernel.bin -> disk.img (magic + size header)
+    └── src/
+        ├── common/    shared by firmware and kernel, compiled into each:
+        │              abi/ (firmware <-> kernel contract), arch/rv32/,
+        │              drivers/uart/, libk/ (string, printf)
+        ├── firmware/  ROM image, M-mode, monitor shell + kernel loader
+        └── kernel/    loaded from the HD into RAM
 ```
 
 ## Who may see what
 
-| project       | include paths                                          |
-|---------------|--------------------------------------------------------|
-| emulator      | platform                                               |
-| sw/firmware   | platform, sw/common/*, sw/firmware/*                   |
-| sw/kernel     | platform, sw/common/*, sw/kernel/*                     |
-| tests/isa     | platform                                               |
+| part              | include paths                                   |
+|-------------------|-------------------------------------------------|
+| emulator          | platform                                        |
+| software/firmware | platform, src/common/*, src/firmware/*          |
+| software/kernel   | platform, src/common/*, src/kernel/*            |
 
-Firmware and kernel never include each other — they only share the
-contracts in `platform/` and `sw/common/abi/`. Each image links its own copy
-of libk and the drivers.
+Firmware and kernel never include each other -- they only share the
+contracts in `platform/` and `src/common/abi/`. Each image links its own copy
+of libk and the drivers. Headers live next to their sources.
 
-## Build
+## Working on it
 
-Each software project (sw/firmware, sw/kernel, tests/isa):
+Open both projects in RAD C++:
+
+1. `emulator/rv32emu.radcpp` -- build it once (Play runs it with the
+   software's `rom.bin` and `disk.img`).
+2. `software/software.radcpp` -- Play builds firmware + kernel and starts the
+   emulator with them (via the generated script `software/build/software`).
+   Extra emulator flags go into `[run] args` in `software.radcpp`.
+
+`software/CMakeLists.txt` is written by hand (RAD C++ cannot set a cross
+toolchain), so RAD C++ shows a "foreign CMakeLists" note on every build.
+That is expected.
+
+From the terminal:
 
 ```sh
-cmake --preset default           # configure  -> rv32/build/<project>/
-cmake --build --preset default   # build (verbose: every command is printed)
-```
-
-`sw/firmware` also has `cmake --build --preset run`: build and start the
-emulator with `rom.bin` and `build/disk.img`.
-
-Everything at once, from `rv32/`:
-
-```sh
+cd software
 cmake --preset default
-cmake --build --preset default   # emulator, firmware, kernel, ISA tests
-cmake --build --preset run       # ... and run
+cmake --build --preset default   # rom.bin, kernel.bin, disk.img
+cmake --build --preset run       # ... and start the emulator
 ```
 
-The emulator is a RAD C++ project: open `emulator/rv32emu.radcpp` in the IDE.
-`CMakeLists.txt` there is generated from it, hand additions go to `project.cmake`.
-From the terminal: `cmake -S emulator -B emulator/build -G Ninja`, then
-`cmake --build emulator/build`.
+## Emulator without a window
 
-Emulator checks: `cmake --build emulator/build -t tests`, then
-`emulator/build/tests`; official suite: `emulator/tests/run_riscv_tests.sh`
-(expects riscv-tests in `../third_party/riscv-tests`).
+`-headless` runs the machine in the console, UART on stdout/stdin:
+
+```sh
+software/build/software -headless
+emulator/build/rv32emu -headless -firmware=software/build/firmware/rom.bin \
+                                 -harddisk=software/build/disk.img
+```
+
+`emulator/build/rv32emu` without arguments lists all options.
 
 Toolchain: Homebrew `riscv64-elf-*`; override with `RISCV_PREFIX=...`.

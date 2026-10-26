@@ -3,7 +3,7 @@
  * addresses come from the single source of truth:
  *   abi/ram_layout.h   RAM_KERN_*   (where the firmware loads the kernel)
  *
- * Boot contract (see sw/common/abi/info.md): the firmware copies the image
+ * Boot contract (see src/common/abi/info.md): the firmware copies the image
  * from the HD to RAM_KERN_START and jumps to its first byte. So the image
  * is linked for RAM_KERN_START and _start (.text.init) must come first.
  *
