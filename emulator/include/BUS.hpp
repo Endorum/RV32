@@ -17,21 +17,21 @@
 class BUS {
 
 public:
-  BUS() = default;
-  ~BUS() = default;
+    BUS() = default;
+    ~BUS() = default;
 
-  void addDevice(Device& dev);
+    void addDevice(Device& dev);
 
-  Device* route(u32 address, u8 size) const;
+    Device* route(u32 address, u8 size) const;
 
-  u32 load(u32 address, u8 size) const;
+    u32 load(u32 address, u8 size) const;
 
-  void store(u32 address, u8 size, u32 value);
+    void store(u32 address, u8 size, u32 value);
 
-  std::string str() const;
+    std::string str() const;
 
 private:
-  std::vector<Device*> devices;
+    std::vector<Device*> devices;
 };
 
 #endif // BUS_HPP

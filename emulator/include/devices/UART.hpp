@@ -15,34 +15,34 @@
 
 class UART : public Device {
 public:
-  explicit UART(u32 start, u32 size) : Device(start, size, "UART"){
+    explicit UART(u32 start, u32 size) : Device(start, size, "UART"){
     
-  } 
+    } 
 
-  u32 load(u32 addr, u8 size) override;
+    u32 load(u32 addr, u8 size) override;
 
-  void store(u32 addr, u8 size, u32 value) override;
+    void store(u32 addr, u8 size, u32 value) override;
 
-  void tick();
+    void tick();
 
-  void push_rx(u8 b);
+    void push_rx(u8 b);
   
-  std::string take_tx();
+    std::string take_tx();
 
 private:
-  std::deque<u8> rx;
-  std::string tx;
+    std::deque<u8> rx;
+    std::string tx;
 
-  u8 IER = 0x00;
-  u8 IIR = 0x01;
-  u8 FCR = 0x00;
-  u8 LCR = 0x00;
+    u8 IER = 0x00;
+    u8 IIR = 0x01;
+    u8 FCR = 0x00;
+    u8 LCR = 0x00;
 
-  u8 DLL = 0x00;
-  u8 DLM = 0x00;
+    u8 DLL = 0x00;
+    u8 DLM = 0x00;
 
   
-  u32 counter = 0;
+    u32 counter = 0;
   
 };
 

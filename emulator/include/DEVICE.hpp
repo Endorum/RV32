@@ -14,28 +14,28 @@
 // a Device now also holds its memory start and size and name
 class Device {
 public:
-  Device(u32 st, u32 sz, const std::string& n) : start(st), dev_size(sz), name(n) {}
+    Device(u32 st, u32 sz, const std::string& n) : start(st), dev_size(sz), name(n) {}
 
-  virtual ~Device() = default;
+    virtual ~Device() = default;
 
-  virtual u32 load(u32 address, u8 size) = 0; 
-  virtual void store(u32 address, u8 size, u32 value) = 0;
-  void tick();
+    virtual u32 load(u32 address, u8 size) = 0; 
+    virtual void store(u32 address, u8 size, u32 value) = 0;
+    void tick();
   
 
-  u32 get_start() const { return start; }
-  u32 get_size() const { return dev_size; }
+    u32 get_start() const { return start; }
+    u32 get_size() const { return dev_size; }
 
-  Config get_config() const { return config; }
-  void set_config(const Config& c) { config = c; }
+    Config get_config() const { return config; }
+    void set_config(const Config& c) { config = c; }
 
-  std::string str() const {return std::format("'{}' start: {:08X} size: {} Bytes", name, start, dev_size);}
+    std::string str() const {return std::format("'{}' start: {:08X} size: {} Bytes", name, start, dev_size);}
 
 private:
-  u32 start;
-  u32 dev_size;
-  std::string name;
-  Config config;
+    u32 start;
+    u32 dev_size;
+    std::string name;
+    Config config;
 };
 
 #endif // DEVICE_HPP

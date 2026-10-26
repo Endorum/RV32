@@ -12,34 +12,34 @@
 
 class CLINT : public Device {
 public:
-  explicit CLINT(u32 start, u32 size) : Device(start, size, "CLINT"){
-    mtime     = 0;
-    msip      = 0;
-    mtimecmp  = 0xFFFFFFFFFFFFFFFF;
-  }
+    explicit CLINT(u32 start, u32 size) : Device(start, size, "CLINT"){
+        mtime     = 0;
+        msip      = 0;
+        mtimecmp  = 0xFFFFFFFFFFFFFFFF;
+    }
 
-  u32 load(u32 addr, u8 size) override;
+    u32 load(u32 addr, u8 size) override;
 
-  void store(u32 addr, u8 size, u32 value) override;
+    void store(u32 addr, u8 size, u32 value) override;
 
-  void tick();
+    void tick();
 
-  bool mtip() const { return mtime >= mtimecmp; }
-  bool msip_pending() const { return msip & 1; }
+    bool mtip() const { return mtime >= mtimecmp; }
+    bool msip_pending() const { return msip & 1; }
 
-  u32 get_time_lo() const { return (u32)mtime; }
-  u32 get_time_hi() const { return (u32)(mtime >> 32); }
+    u32 get_time_lo() const { return (u32)mtime; }
+    u32 get_time_hi() const { return (u32)(mtime >> 32); }
 
-  u32 pending_mip() const {
-    return 
-      (mtip() ? MIP_MTIP : 0) | 
-      (msip_pending() ? MIP_MSIP : 0);
-  }
+    u32 pending_mip() const {
+        return 
+            (mtip() ? MIP_MTIP : 0) | 
+            (msip_pending() ? MIP_MSIP : 0);
+    }
 
 private:
-  u32 msip;
-  u64 mtimecmp;
-  u64 mtime;
+    u32 msip;
+    u64 mtimecmp;
+    u64 mtime;
 
 };
 

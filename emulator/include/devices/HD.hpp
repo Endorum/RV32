@@ -14,24 +14,24 @@
 
 class HD : public Device {
 public:
-  explicit HD(u32 start, u32 size) : Device(start, size, "HD"){}
+    explicit HD(u32 start, u32 size) : Device(start, size, "HD"){}
 
-  u32 load(u32 addr, u8 size) override;
+    u32 load(u32 addr, u8 size) override;
 
-  void store(u32 addr, u8 size, u32 value) override;  
+    void store(u32 addr, u8 size, u32 value) override;  
 
-  void setup_harddisk();
+    void setup_harddisk();
   
-  bool was_setup() const { return setup; }
+    bool was_setup() const { return setup; }
 
 private:
-  std::string filepath;
-  std::fstream file;
+    std::string filepath;
+    std::fstream file;
 
-  bool setup = false;
+    bool setup = false;
 
-  u32 delay_mus = 100;
-  void delay();
+    u32 delay_mus = 100;
+    void delay();
 };
 
 #endif // HD_HPP
