@@ -10,7 +10,7 @@
 
 #include "shell.h"
 
-#include "../../../platform/devices/clint.h"
+#include "devices/clint.h"
 
 
 void trap(trap_frame_t* tf){

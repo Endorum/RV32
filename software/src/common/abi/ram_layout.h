@@ -5,7 +5,7 @@
 #ifndef RAM_LAYOUT_H
 #define RAM_LAYOUT_H
 
-#include "../../../platform/memory_map.h"
+#include "memory_map.h"
 
 #define RAM_FIRM_START  RAM_START
 #define RAM_FIRM_SIZE   0x40000
