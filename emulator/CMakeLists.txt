@@ -18,6 +18,10 @@ target_link_libraries(rv32emu PRIVATE Qt6::Widgets)
 # RAD C++ components are built by the IDE into <RAD_CPP>/build/sdk; terminal builds pass -DCMAKE_PREFIX_PATH="/opt/homebrew;<RAD_CPP>/build/sdk"
 find_package(RadCpp REQUIRED CONFIG COMPONENTS Components)
 target_link_libraries(rv32emu PRIVATE RadCpp::Components)
+find_package(RadCpp REQUIRED CONFIG COMPONENTS Sdl)
+target_link_libraries(rv32emu PRIVATE RadCpp::Sdl)
+find_package(SDL3 REQUIRED CONFIG)
+target_link_libraries(rv32emu PRIVATE SDL3::SDL3)
 
 # --- qt: moc, uic and rcc run automatically. Ninja re-runs them only for files in its depfile, and a
 # header found by the glob is not in there, so the source list is kept as its own listfile.

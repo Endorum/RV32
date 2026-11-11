@@ -27,7 +27,7 @@ _start:
 .option norelax
     la gp, __global_pointer$
 .option pop
-
+    
     
     // copy ROMs data to RAM
     la a0, __data_start
@@ -54,6 +54,8 @@ halt:
 
 
 .section .bss
+
+
 .balign 16
 trap_stack:
     .space 4096

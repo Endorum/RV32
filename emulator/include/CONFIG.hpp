@@ -65,6 +65,14 @@ struct Config {
 
     u32 uart_start = UART_START;
     u32 uart_size = UART_SIZE;
+    
+    u32 screen_start = SCREEN_START;
+    u32 screen_size = SCREEN_SIZE;
+    
+    u32 floppyAstart =  FLOPPYA_START;
+    u32 floppyAsize =   FLOPPYA_SIZE;
+    u32 floppyBstart =  FLOPPYB_START;
+    u32 floppyBsize =   FLOPPYB_SIZE;
 };
 
 Config parse_arguments(int argc, char** argv);

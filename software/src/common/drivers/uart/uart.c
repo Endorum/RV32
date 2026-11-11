@@ -43,7 +43,10 @@ int uart_gets(char* buf, int max){
             uart_puts("\r\n");
             break;
         }
-
+        
+        
+        if ((c == '\b' || c == 0x7F) && i == 0) continue; // do nothing
+            
         if ((c == '\b' || c == 0x7F) && i > 0){ // backspace / DEL
             i--;
             uart_puts("\b \b");

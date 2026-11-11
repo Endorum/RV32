@@ -1,12 +1,14 @@
 
 #include <cstring>
 #include <cfenv>
+#include <stdexcept>
 
 #include "CONFIG.hpp"
 #include "DECODE.hpp"
 #include "DEFS.hpp"
 #include "CPU.hpp"
 #include "ERROR.hpp"
+#include "UTILS.hpp"
 
 
 
@@ -397,12 +399,36 @@ void CPU::enter_interrupt(u32 addr, INTERRUPT_CODE code){
     enter_trap(addr, (u32)code, 0); // interrupts always have tval = 0
 }
 
-void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
-    set_csr_raw(CSR_ADDR::mepc, trap_addr);       // mepc <- addr of the ecall
-    set_csr_raw(CSR_ADDR::mcause, (u32)cause);    // 
-    set_csr_raw(CSR_ADDR::mtval, tval);
+void CPU::trap_mode(u32 tvec, u32 cause){
+    u32 base = tvec & ~0x3;
+    u8  mode = tvec & 0x3;
 
-    u32 mstatus = get_csr(CSR_ADDR::mstatus);
+
+    if(mode == 0b00){
+        // direct mode
+        pc = base;
+    }
+    else if(mode == 0b01){
+        // vectored mode
+        if(cause & 0x80000000){ // = if interrupt (not exception)
+            pc = base + 4 * (cause & ~0x80000000); // without int. bit i assume
+        }else{
+            pc = base; // exceptions work with the base
+        }
+    }
+
+    else{ // mode >= 2 should not happen anymore as in set_csr its not allowd for mtvec/stvec
+        Error<std::runtime_error>("reserved trap modes");
+        // throw TrapException(EXCEPTION_CODE::ILLEGAL_INSTRUCTION);
+    }
+}
+
+void CPU::enter_trap_m(u32 mepc, u32 mcause, u32 mtval){
+    set_csr_raw(CSR_ADDR::mepc, mepc);          // mepc <- addr of the ecall
+    set_csr_raw(CSR_ADDR::mcause, mcause);      // 
+    set_csr_raw(CSR_ADDR::mtval, mtval);
+
+    u32 mstatus = get_csr_raw(CSR_ADDR::mstatus);
 
     u32 mie = (mstatus >> 3) & 1;                         // aktuelles MIE
     mstatus = (mstatus & ~(MSTATUS_MPIE)) | (mie << 7);   // MPIE <- MIE
@@ -415,28 +441,62 @@ void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
 
     u32 mtvec = get_csr(CSR_ADDR::mtvec);
 
-    u32 base = mtvec & ~0x3;
-    u8  mode = mtvec & 0x3;
+    trap_mode(mtvec, mcause);
 
-    if(mode == 0b00){
-        // direct mode
-        pc = base;
-    }
-    else if(mode == 0b01){
-        // vectored mode
-        if(cause & 0x80000000){ // = if interrupt (not exception)
-            pc = base + 4 * (cause & 0x7FFFFFFF); // without int. bit i assume
-        }else{
-            pc = base; // exceptions work with the base
-        }
-    }
-    else{ // mode >= 2 should not happen anymore as in set_csr its not allowd for mtvec
-        Error<std::runtime_error>("reserved trap modes");
-        // throw TrapException(EXCEPTION_CODE::ILLEGAL_INSTRUCTION);
-    }
+}
 
-    // why?
+void CPU::enter_trap_s(u32 sepc, u32 scause, u32 stval){
+    set_csr_raw(CSR_ADDR::sepc, sepc);
+    set_csr_raw(CSR_ADDR::scause, scause);
+    set_csr_raw(CSR_ADDR::stval, stval);
+    
+    u32 mstatus = get_csr_raw(CSR_ADDR::mstatus);
+    
+    u32 sie = (mstatus >> 1) & 1;
+    mstatus = (mstatus & ~(MSTATUS_SPIE)) | (sie << 5);
+    mstatus &= ~(MSTATUS_SIE);
+    mstatus = (mstatus & ~(MSTATUS_SPP)) | ((u32)priv) << 8;
+    set_csr_raw(CSR_ADDR::mstatus, mstatus);
+    
+    priv = PRIV_LEVEL::SUPERVISOR;
+    
+    u32 stvec = get_csr(CSR_ADDR::stvec);
+    
+    trap_mode(stvec, scause);
+    
+}
+
+void CPU::enter_trap(u32 trap_addr, u32 cause, u32 tval) {
+    
+    u32 medeleg = get_csr(CSR_ADDR::medeleg);
+    u32 mideleg = get_csr(CSR_ADDR::mideleg);
+    
+    bool interrupt = cause & 0x80000000; // if code has this bit set its an interrupt otherwise its an exception
+    
     reservation_valid = false;
+    
+    if(priv == PRIV_LEVEL::MACHINE){
+        enter_trap_m(trap_addr, cause, tval);
+        return;
+    }
+    
+    
+    bool bit_cause = false;
+    
+    if( interrupt ){
+        bit_cause = mideleg & (1ULL << (cause & ~0x80000000)); // if bit n=cause is set in mideleg then trap s
+    }else{
+        bit_cause = medeleg & (1ULL << cause);      
+    }
+    
+    if(priv <= PRIV_LEVEL::SUPERVISOR && bit_cause){
+        enter_trap_s(trap_addr, cause, tval);
+        return;
+    }
+    
+    
+    // default
+    enter_trap_m(trap_addr, cause, tval);
 }
 
 void CPU::mret() {
@@ -445,9 +505,9 @@ void CPU::mret() {
         return;
     }
 
-    u32 mstatus = get_csr(CSR_ADDR::mstatus);
+    u32 mstatus = get_csr_raw(CSR_ADDR::mstatus);
 
-    // get saved priv level bits and change priv level back to the old one
+    // read mpp
     u8 pl = (mstatus & MSTATUS_MPP_MASK) >> 11;
 
     if((PRIV_LEVEL)pl == PRIV_LEVEL::RESERVED){
@@ -455,17 +515,13 @@ void CPU::mret() {
         return;
     }
 
+    // set priv level
     priv = (PRIV_LEVEL)(pl);
   
-    u32 mpie = (mstatus >> 7) & 1;                      // MIE herauslesen
-    mstatus = (mstatus & ~(MSTATUS_MIE)) | (mpie << 3); // MIE <- MPIE wiederherstellen
+    u32 mpie = (mstatus >> 7) & 1;                      // read MPIE 
+    mstatus = (mstatus & ~(MSTATUS_MIE)) | (mpie << 3); // MIE <- MPIE restore
     mstatus |= (MSTATUS_MPIE);                          // MPIE <- 1
     mstatus = (mstatus & ~(MSTATUS_MPP_MASK)) | (MSTATUS_MPP_U); // set U mode in mpp (do nothing because u=0)
-
-  
-
-  
-  
 
     set_csr_raw(CSR_ADDR::mstatus, mstatus);
 
@@ -473,12 +529,37 @@ void CPU::mret() {
   
 }
 
+void CPU::sret(){
+    if(priv < PRIV_LEVEL::SUPERVISOR){
+        enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+        return;
+    }
+    
+    u32 mstatus = get_csr_raw(CSR_ADDR::mstatus);
+    
+    // 0(U) or 1(S).
+    u8 pl = (mstatus & MSTATUS_SPP) >> 8;
+
+    // set priv level
+    priv = pl ? PRIV_LEVEL::SUPERVISOR : PRIV_LEVEL::USER;
+    
+    u32 spie = (mstatus >> 5) & 1;                      // read SPIE
+    mstatus = (mstatus & ~(MSTATUS_SIE)) | (spie << 1); // SIE <- SPIE
+    mstatus |= (MSTATUS_SPIE);                          // set SPIE = 1
+    mstatus = (mstatus & ~(MSTATUS_SPP));               // set SPP <- 0
+    
+    set_csr_raw(CSR_ADDR::mstatus, mstatus);
+    
+    pc = get_csr(CSR_ADDR::sepc) & ~0x1;
+    
+}
+
 CPU_STATE CPU::get_state() {
         CPU_STATE state;
     
         for(int i=0;i<32;i++){
                 state.regfile[i] = regfile[i];
-                state.fregfile[i] = regfile[i];
+                state.fregfile[i] = fregfile[i];
         }
     
         for(int i=0;i<4096;i++){
@@ -493,7 +574,9 @@ CPU_STATE CPU::get_state() {
     
         state.priv = priv;
     
-        state.current_dis = get_current_dis();
+        state.current_dis = "?"; // get_current_dis();
+        
+        state.current_instr = instr;
     
         return state;
 }

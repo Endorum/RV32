@@ -189,6 +189,11 @@ uint32_t parse_argument(const char* s, int* bytes){
     if(strcmp(s, "RAM_USER_START") == 0)    return  RAM_USER_START;
     if(strcmp(s, "RAM_USER_SIZE") == 0)     return   RAM_USER_SIZE;
     if(strcmp(s, "RAM_USER_END") == 0)      return RAM_USER_START + RAM_USER_SIZE;
+        
+    if(strcmp(s, "A:") == 0) return FLOPPYA_START;
+    if(strcmp(s, "B:") == 0) return FLOPPYA_START;
+        
+    
     
     if(strcmp(s, ".") == 0) return pointer;
 

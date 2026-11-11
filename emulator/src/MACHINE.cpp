@@ -1,4 +1,5 @@
 #include "MACHINE.hpp"
+#include "DEFS.hpp"
 #include <csignal>
 
 
@@ -89,4 +90,14 @@ void Machine::reset() {
 
         cpu.reset();
     
+}
+
+
+
+const std::vector<u8>& Machine::screen_output() {
+    return screen.getScreen();
+}
+
+uint32_t Machine::load(uint32_t addr, u8 size) {
+    return bus.load(addr, size);
 }

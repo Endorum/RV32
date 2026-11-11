@@ -56,7 +56,8 @@ void boot_kernel() {
     // set MPP
     uint32_t s = csr_read(mstatus);
     s &= ~(3u << 11);   // del MPP
-    s |=  (3u << 11);   // MPP = M
+    // s |=  (3u << 11);   // MPP = M
+    s |=  (1u << 11);   // MPP = S
     s &= ~(1u << 7);    // MPIE = 0 after mret MIE = 0
     csr_write(mstatus, s);
     csr_write(mie, 0);

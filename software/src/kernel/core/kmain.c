@@ -1,13 +1,13 @@
 
+#include "devices/screenInfo.h"
+#include "memory_map.h"
 #include "stdint.h"
 #include "kstdio.h"
 #include "kmalloc.h"
 #include "page.h"
 
-typedef struct Obj{
-    int a;
-    int b;
-}Obj_t;
+#include "../drivers/screen/screen.h"
+
 
 void kmain(uint32_t hartid, uint32_t bootinfo){
     kprintf("Kernel start, hartid %d, bootinfo %08X\n", hartid, bootinfo);
@@ -20,6 +20,9 @@ void kmain(uint32_t hartid, uint32_t bootinfo){
     void* a = kmalloc(23);
     void* b = kmalloc(45);
     void* c = kmalloc(187);
+    
+    
+    
     
     kmalloc_dump();
 

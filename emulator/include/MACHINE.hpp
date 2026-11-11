@@ -1,15 +1,19 @@
 #ifndef MACHINE_HPP
 #define MACHINE_HPP
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <termios.h>
 #include <unistd.h>
+#include <vector>
 
 #include "BUS.hpp"
 #include "CONFIG.hpp"
 #include "CPU.hpp"
 #include "DEFS.hpp"
+#include "devices/FLOPPY.hpp"
+#include "devices/SCREEN.hpp"
 #include "memory_map.h"
 
 #include "devices/RAM.hpp"
@@ -47,7 +51,9 @@ public:
         bus.addDevice(ram);
         bus.addDevice(clint);
         bus.addDevice(uart);
-    
+        bus.addDevice(screen);
+        bus.addDevice(floppyA);
+        bus.addDevice(floppyB);
 
         // only add harddrive if a path is given otherwise the space is simply not reachable
         if(!config.harddisk_path.empty()) bus.addDevice(hd);
@@ -70,16 +76,30 @@ public:
     void debug();
   
     void reset();
+    
+    uint32_t get_pc() { return cpu.get_pc(); }
+    
+    uint32_t load(uint32_t addr, u8 size);
   
     std::string uart_output(){
-            return uart.take_tx();
+        return uart.take_tx();
     }
   
     void uart_input(const std::string& s) {
-            for (char c : s){
-                    uart.push_rx(u8(c));
-            }
+        for (char c : s){
+            uart.push_rx(u8(c));
+        }
     }
+    
+    void load_floppy_a(const std::string& filename){
+        floppyA.insertDisk(filename);
+    }
+    
+    void load_floppy_b(const std::string& filename){
+        floppyB.insertDisk(filename);
+    }
+    
+    const std::vector<u8>& screen_output();
  
 private:
 
@@ -95,9 +115,14 @@ private:
     HD  hd{config.hd_start, config.hd_size};
     TOHOST tohost{config.tohost_address, 0x100};
     CLINT clint{config.clint_start, config.clint_size};
+    SCREEN screen{config.screen_start, config.screen_size};
+    
+    FLOPPY floppyA{config.floppyAstart, config.floppyAsize, 'A'};
+    FLOPPY floppyB{config.floppyBstart, config.floppyBsize, 'B'};
 
   
     UART uart{config.uart_start, config.uart_size};
+    uint32_t loadWord(uint32_t addr);
   
 };
 

@@ -18,5 +18,14 @@
 #define UART_START  0x50000000
 #define UART_SIZE   0x100       
 
+#define SCREEN_START 0x60000000
+#define SCREEN_SIZE  0xE100
+
+#define FLOPPYB_START  0x70000000
+#define FLOPPYB_SIZE   0x00168000 // 1.44mb
+
+#define FLOPPYA_START  0x70100000
+#define FLOPPYA_SIZE   0x00168000 // 1.44mb
+
 
 #endif // MAP_H

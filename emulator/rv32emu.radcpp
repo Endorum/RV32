@@ -4,7 +4,7 @@ standard = "c++23"
 type = "qt-widgets"
 
 [run]
-args = ["-firmware=../software/build/firmware/rom.bin", "-harddisk=../software/build/disk.img"]
+args = [ "-firmware=../software/build/firmware/rom.bin", "-harddisk=../software/build/disk.img" ]
 working_dir = "."
 
 [skin]
@@ -23,3 +23,9 @@ radius = 6
 
 [[libraries]]
 id = "radcpp-components"
+
+[[libraries]]
+id = "radcpp-sdl"
+
+[[libraries]]
+id = "sdl3"

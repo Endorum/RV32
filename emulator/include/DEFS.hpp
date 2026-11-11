@@ -95,8 +95,12 @@
 #define MSTATUS_MDT          (1ULL << 42)
 
 /* Dirty summary */
+#define MSTATUS_SD_RV32      (1ULL << 31)
 #define MSTATUS_SD           (1ULL << 63)
 
+
+#define SSTATUS_MASK_READ   (MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP | MSTATUS_FS_MASK | MSTATUS_SD_RV32)
+#define SSTATUS_MASK_WRITE  (MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP | MSTATUS_FS_MASK)
 
 #define MISA_EXT_A  0x00000001 // Atomic Extension                               
 #define MISA_EXT_B  0x00000002 // Bit-Manipulation Extension                     

@@ -188,9 +188,6 @@ Op get_op(const Instruction& instr){
                     default: return Op::INVALID;
                 }
         
-        
-        
-        
             }
       
             return SYSTEM_OP[instr.funct3];

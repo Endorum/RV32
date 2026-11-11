@@ -10,6 +10,7 @@
 #include "BUS.hpp"
 #include "CONFIG.hpp"
 #include "DECODE.hpp"
+#include "DEFS.hpp"
 #include "UTILS.hpp"
 #include "devices/CLINT.hpp"
 
@@ -44,18 +45,20 @@ enum class PRIV_LEVEL : u8 {
 
 // copy of registers used for dump
 struct CPU_STATE{
-        uint32_t regfile[32];
-        uint32_t csr[4096];
-        uint32_t pc;
-    
-        uint32_t fcsr;
-        uint64_t fregfile[32];
-    
-        uint32_t cycle;
+    uint32_t regfile[32];
+    uint32_t csr[4096];
+    uint32_t pc;
 
-        PRIV_LEVEL priv;
-    
-        std::string current_dis;
+    uint32_t fcsr;
+    uint64_t fregfile[32];
+
+    uint32_t cycle;
+
+    PRIV_LEVEL priv;
+
+    std::string current_dis;
+
+    Instruction current_instr;
 };
 
 class CPU{
@@ -79,6 +82,8 @@ public:
     bool get_sleeping() { return sleeping; }
   
     CPU_STATE get_state();
+    
+    uint32_t get_pc() const { return pc; }
 
 private:
     u32 regfile[32];
@@ -129,8 +134,9 @@ private:
     void set_csr(CSR_ADDR idx, u32 val) { set_csr(static_cast<u16>(idx), val); }
     void set_csr_raw(CSR_ADDR idx, u32 val) { csr[(u16)idx] = val; }
   
-    u32  get_csr(u16 idx) const;
-    u32  get_csr(CSR_ADDR idx) const { return get_csr( static_cast<u16>(idx)); }
+    u32 get_csr(u16 idx) const;
+    u32 get_csr(CSR_ADDR idx) const { return get_csr( static_cast<u16>(idx)); }
+    u32 get_csr_raw(CSR_ADDR idx) const { return csr[(u16)idx]; }
 
     void store(u32 addr, u8 size, u64 val);
     u64  load(u32 addr, u8 size);
@@ -182,8 +188,14 @@ private:
 
     void enter_exception(u32 addr, EXCEPTION_CODE code, u32 word);
     void enter_interrupt(u32 addr, INTERRUPT_CODE code);
-    void enter_trap(u32 trap_addr, u32 code, u32 tval);
+    
+    void trap_mode(u32 tvec, u32 cause);
+    void enter_trap(u32 trap_addr, u32 cause, u32 tval);
+    void enter_trap_m(u32 mepc, u32 mcause, u32 mtval);
+    void enter_trap_s(u32 sepc, u32 scause, u32 stval);
+    
     void mret();  
+    void sret();
 
 
     /* RV32I */

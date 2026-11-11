@@ -28,6 +28,8 @@ public:
 
     Config get_config() const { return config; }
     void set_config(const Config& c) { config = c; }
+    
+    std::string get_name() const { return name; }
 
     std::string str() const {return std::format("'{}' start: {:08X} size: {} Bytes", name, start, dev_size);}
 

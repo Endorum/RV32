@@ -226,19 +226,18 @@ void CPU::exec_system(){
     }
   
     else if(instr.op == Op::SFENCE_VMA){
+        
+        if(priv == PRIV_LEVEL::USER){
+            enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+            return;
+        }
+        
         Error<std::runtime_error>("TODO: SFENCE_VMA\n");
         return;
     }
   
     else if(instr.op == Op::SRET){
-    
-        if(priv == PRIV_LEVEL::USER){
-            enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
-            return;
-        }
-    
-        Error<std::runtime_error>("TODO: SRET\n");
-        return;
+        sret();
     }
   
     else{

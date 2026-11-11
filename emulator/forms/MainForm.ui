@@ -6,414 +6,34 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>994</width>
-    <height>1006</height>
+    <width>1570</width>
+    <height>1000</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1570</width>
+    <height>1000</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1570</width>
+    <height>1000</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>rv32emu</string>
   </property>
+  <property name="styleSheet">
+   <string notr="true">#MainForm { background: #101010; }</string>
+  </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QTableWidget" name="tblRegisters">
-    <property name="geometry">
-     <rect>
-      <x>730</x>
-      <y>10</y>
-      <width>251</width>
-      <height>981</height>
-     </rect>
-    </property>
-    <property name="verticalScrollBarPolicy">
-     <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="autoScroll">
-     <bool>true</bool>
-    </property>
-    <property name="editTriggers">
-     <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
-    </property>
-    <property name="tabKeyNavigation">
-     <bool>false</bool>
-    </property>
-    <property name="showDropIndicator" stdset="0">
-     <bool>false</bool>
-    </property>
-    <property name="alternatingRowColors">
-     <bool>false</bool>
-    </property>
-    <property name="showGrid">
-     <bool>true</bool>
-    </property>
-    <property name="rowCount">
-     <number>32</number>
-    </property>
-    <attribute name="horizontalHeaderVisible">
-     <bool>true</bool>
-    </attribute>
-    <attribute name="horizontalHeaderStretchLastSection">
-     <bool>true</bool>
-    </attribute>
-    <attribute name="verticalHeaderVisible">
-     <bool>false</bool>
-    </attribute>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <row/>
-    <column>
-     <property name="text">
-      <string>Register</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </column>
-    <column>
-     <property name="text">
-      <string>Value</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignLeading|AlignVCenter</set>
-     </property>
-    </column>
-    <item row="0" column="0">
-     <property name="text">
-      <string>zero</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="1" column="0">
-     <property name="text">
-      <string>ra</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="2" column="0">
-     <property name="text">
-      <string>sp</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="3" column="0">
-     <property name="text">
-      <string>gp</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="4" column="0">
-     <property name="text">
-      <string>tp</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="5" column="0">
-     <property name="text">
-      <string>t0</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="6" column="0">
-     <property name="text">
-      <string>t1</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="7" column="0">
-     <property name="text">
-      <string>t2</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="8" column="0">
-     <property name="text">
-      <string>s0</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="9" column="0">
-     <property name="text">
-      <string>s1</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="10" column="0">
-     <property name="text">
-      <string>a0</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="11" column="0">
-     <property name="text">
-      <string>a1</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="12" column="0">
-     <property name="text">
-      <string>a2</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="13" column="0">
-     <property name="text">
-      <string>a3</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="14" column="0">
-     <property name="text">
-      <string>a4</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="15" column="0">
-     <property name="text">
-      <string>a5</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="16" column="0">
-     <property name="text">
-      <string>a6</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="17" column="0">
-     <property name="text">
-      <string>a7</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="18" column="0">
-     <property name="text">
-      <string>s2</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="19" column="0">
-     <property name="text">
-      <string>s3</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="20" column="0">
-     <property name="text">
-      <string>s4</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="21" column="0">
-     <property name="text">
-      <string>s5</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="22" column="0">
-     <property name="text">
-      <string>s6</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="23" column="0">
-     <property name="text">
-      <string>s7</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="24" column="0">
-     <property name="text">
-      <string>s8</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="25" column="0">
-     <property name="text">
-      <string>s9</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="26" column="0">
-     <property name="text">
-      <string>s10</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="27" column="0">
-     <property name="text">
-      <string>s11</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="28" column="0">
-     <property name="text">
-      <string>t3</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="29" column="0">
-     <property name="text">
-      <string>t4</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="30" column="0">
-     <property name="text">
-      <string>t5</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-    <item row="31" column="0">
-     <property name="text">
-      <string>t6</string>
-     </property>
-     <property name="textAlignment">
-      <set>AlignTrailing|AlignVCenter</set>
-     </property>
-    </item>
-   </widget>
-   <widget class="rad::LabeledEdit" name="edCycle">
-    <property name="geometry">
-     <rect>
-      <x>491</x>
-      <y>710</y>
-      <width>220</width>
-      <height>25</height>
-     </rect>
-    </property>
-    <property name="labelText">
-     <string>Cycle: </string>
-    </property>
-    <property name="readOnly">
-     <bool>true</bool>
-    </property>
-   </widget>
-   <widget class="rad::LabeledEdit" name="edPc">
-    <property name="geometry">
-     <rect>
-      <x>491</x>
-      <y>750</y>
-      <width>220</width>
-      <height>25</height>
-     </rect>
-    </property>
-    <property name="labelText">
-     <string>PC:</string>
-    </property>
-    <property name="readOnly">
-     <bool>true</bool>
-    </property>
-   </widget>
-   <widget class="rad::LabeledEdit" name="edCurrDiss">
-    <property name="geometry">
-     <rect>
-      <x>410</x>
-      <y>790</y>
-      <width>301</width>
-      <height>25</height>
-     </rect>
-    </property>
-    <property name="labelText">
-     <string/>
-    </property>
-    <property name="readOnly">
-     <bool>true</bool>
-    </property>
-   </widget>
    <widget class="QPushButton" name="btnStep">
     <property name="geometry">
      <rect>
-      <x>280</x>
-      <y>960</y>
+      <x>890</x>
+      <y>20</y>
       <width>100</width>
       <height>30</height>
      </rect>
@@ -425,64 +45,11 @@
      <bool>false</bool>
     </property>
    </widget>
-   <widget class="QPlainTextEdit" name="mmOUT">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>10</y>
-      <width>691</width>
-      <height>591</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Menlo</family>
-      <pointsize>-1</pointsize>
-      <bold>true</bold>
-     </font>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">background-color: rgb(0, 0, 0);
-color: rgb(0, 255, 0);</string>
-    </property>
-    <property name="readOnly">
-     <bool>true</bool>
-    </property>
-    <property name="backgroundVisible">
-     <bool>false</bool>
-    </property>
-   </widget>
-   <widget class="rad::LabeledEdit" name="mmIN">
-    <property name="geometry">
-     <rect>
-      <x>30</x>
-      <y>620</y>
-      <width>671</width>
-      <height>25</height>
-     </rect>
-    </property>
-    <property name="labelText">
-     <string>INPUT</string>
-    </property>
-   </widget>
-   <widget class="rad::LabeledEdit" name="edBreakpoint">
-    <property name="geometry">
-     <rect>
-      <x>410</x>
-      <y>850</y>
-      <width>191</width>
-      <height>25</height>
-     </rect>
-    </property>
-    <property name="labelText">
-     <string>BREAK</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="btnCont">
     <property name="geometry">
      <rect>
-      <x>610</x>
-      <y>960</y>
+      <x>680</x>
+      <y>20</y>
       <width>100</width>
       <height>30</height>
      </rect>
@@ -494,8 +61,8 @@ color: rgb(0, 255, 0);</string>
    <widget class="QPushButton" name="btnHalt">
     <property name="geometry">
      <rect>
-      <x>510</x>
-      <y>960</y>
+      <x>790</x>
+      <y>20</y>
       <width>91</width>
       <height>30</height>
      </rect>
@@ -504,65 +71,1505 @@ color: rgb(0, 255, 0);</string>
      <string>HALT</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="btnReset">
+   <widget class="QGroupBox" name="groupBox">
     <property name="geometry">
      <rect>
-      <x>390</x>
-      <y>960</y>
-      <width>100</width>
+      <x>680</x>
+      <y>60</y>
+      <width>135</width>
+      <height>920</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Helvetica Neue</family>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="title">
+     <string>Registers</string>
+    </property>
+    <property name="flat">
+     <bool>false</bool>
+    </property>
+    <property name="checkable">
+     <bool>false</bool>
+    </property>
+    <widget class="QTableWidget" name="tblRegisters">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>115</width>
+       <height>800</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>JetBrainsMono Nerd Font Mono</family>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="verticalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="autoScroll">
+      <bool>true</bool>
+     </property>
+     <property name="editTriggers">
+      <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+     </property>
+     <property name="tabKeyNavigation">
+      <bool>false</bool>
+     </property>
+     <property name="showDropIndicator" stdset="0">
+      <bool>false</bool>
+     </property>
+     <property name="alternatingRowColors">
+      <bool>false</bool>
+     </property>
+     <property name="showGrid">
+      <bool>true</bool>
+     </property>
+     <property name="rowCount">
+      <number>32</number>
+     </property>
+     <attribute name="horizontalHeaderVisible">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="horizontalHeaderMinimumSectionSize">
+      <number>15</number>
+     </attribute>
+     <attribute name="horizontalHeaderDefaultSectionSize">
+      <number>40</number>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="verticalHeaderVisible">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderDefaultSectionSize">
+      <number>24</number>
+     </attribute>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <column>
+      <property name="text">
+       <string>ABI</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Value</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <item row="0" column="0">
+      <property name="text">
+       <string>zero</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="1" column="0">
+      <property name="text">
+       <string>ra</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="2" column="0">
+      <property name="text">
+       <string>sp</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="3" column="0">
+      <property name="text">
+       <string>gp</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="4" column="0">
+      <property name="text">
+       <string>tp</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="5" column="0">
+      <property name="text">
+       <string>t0</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="6" column="0">
+      <property name="text">
+       <string>t1</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="7" column="0">
+      <property name="text">
+       <string>t2</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="8" column="0">
+      <property name="text">
+       <string>s0</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="9" column="0">
+      <property name="text">
+       <string>s1</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="10" column="0">
+      <property name="text">
+       <string>a0</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="11" column="0">
+      <property name="text">
+       <string>a1</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="12" column="0">
+      <property name="text">
+       <string>a2</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="13" column="0">
+      <property name="text">
+       <string>a3</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="14" column="0">
+      <property name="text">
+       <string>a4</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="15" column="0">
+      <property name="text">
+       <string>a5</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="16" column="0">
+      <property name="text">
+       <string>a6</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="17" column="0">
+      <property name="text">
+       <string>a7</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="18" column="0">
+      <property name="text">
+       <string>s2</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="19" column="0">
+      <property name="text">
+       <string>s3</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="20" column="0">
+      <property name="text">
+       <string>s4</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="21" column="0">
+      <property name="text">
+       <string>s5</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="22" column="0">
+      <property name="text">
+       <string>s6</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="23" column="0">
+      <property name="text">
+       <string>s7</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="24" column="0">
+      <property name="text">
+       <string>s8</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="25" column="0">
+      <property name="text">
+       <string>s9</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="26" column="0">
+      <property name="text">
+       <string>s10</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="27" column="0">
+      <property name="text">
+       <string>s11</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="28" column="0">
+      <property name="text">
+       <string>t3</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="29" column="0">
+      <property name="text">
+       <string>t4</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="30" column="0">
+      <property name="text">
+       <string>t5</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+     <item row="31" column="0">
+      <property name="text">
+       <string>t6</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignTrailing|AlignVCenter</set>
+      </property>
+     </item>
+    </widget>
+    <widget class="rad::LabeledEdit" name="edPc">
+     <property name="geometry">
+      <rect>
+       <x>12</x>
+       <y>840</y>
+       <width>111</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="labelText">
+      <string>PC:</string>
+     </property>
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox_2">
+    <property name="geometry">
+     <rect>
+      <x>830</x>
+      <y>60</y>
+      <width>460</width>
+      <height>460</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Disassembly</string>
+    </property>
+    <widget class="QTableWidget" name="tblDisass">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>440</width>
+       <height>420</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>JetBrainsMono Nerd Font Mono</family>
+       <pointsize>-1</pointsize>
+      </font>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="showGrid">
+      <bool>true</bool>
+     </property>
+     <property name="gridStyle">
+      <enum>Qt::PenStyle::SolidLine</enum>
+     </property>
+     <property name="rowCount">
+      <number>13</number>
+     </property>
+     <attribute name="horizontalHeaderVisible">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="horizontalHeaderHighlightSections">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="verticalHeaderVisible">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderCascadingSectionResizes">
+      <bool>true</bool>
+     </attribute>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <column>
+      <property name="text">
+       <string>Address</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Word</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Instruction</string>
+      </property>
+     </column>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox_3">
+    <property name="geometry">
+     <rect>
+      <x>830</x>
+      <y>530</y>
+      <width>720</width>
+      <height>290</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Memory</string>
+    </property>
+    <widget class="QTableWidget" name="tblMemory">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>70</y>
+       <width>700</width>
+       <height>210</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>JetBrainsMono Nerd Font</family>
+       <pointsize>-1</pointsize>
+      </font>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="rowCount">
+      <number>6</number>
+     </property>
+     <attribute name="horizontalHeaderMinimumSectionSize">
+      <number>10</number>
+     </attribute>
+     <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderVisible">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderCascadingSectionResizes">
+      <bool>false</bool>
+     </attribute>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <column>
+      <property name="text">
+       <string>Address</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>0</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>1</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>2</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>3</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>4</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>5</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>6</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>7</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>8</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>9</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>A</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>B</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>C</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>D</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>E</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>F</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>ASCII</string>
+      </property>
+     </column>
+    </widget>
+    <widget class="QComboBox" name="comboMemoryView">
+     <property name="geometry">
+      <rect>
+       <x>60</x>
+       <y>30</y>
+       <width>80</width>
+       <height>26</height>
+      </rect>
+     </property>
+     <item>
+      <property name="text">
+       <string>ROM</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>RAM</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>HD</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>PC</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>SP</string>
+      </property>
+     </item>
+    </widget>
+    <widget class="QLabel" name="label">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>33</y>
+       <width>40</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Show:</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="edMemoryAddress">
+     <property name="geometry">
+      <rect>
+       <x>150</x>
+       <y>30</y>
+       <width>90</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>JetBrainsMono Nerd Font Mono</family>
+      </font>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btnGoto">
+     <property name="geometry">
+      <rect>
+       <x>250</x>
+       <y>30</y>
+       <width>70</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Go</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox_4">
+    <property name="geometry">
+     <rect>
+      <x>1300</x>
+      <y>60</y>
+      <width>250</width>
+      <height>110</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">rad--StatusLed {color: #8b93a3; }</string>
+    </property>
+    <property name="title">
+     <string>Privilege</string>
+    </property>
+    <widget class="rad::StatusLed" name="ledUserMode">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>30</y>
+       <width>100</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="state">
+      <enum>rad::StatusLed::State::Off</enum>
+     </property>
+     <property name="text">
+      <string>USER MODE</string>
+     </property>
+    </widget>
+    <widget class="rad::StatusLed" name="ledSuperMode">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>50</y>
+       <width>150</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>SUPERVISOR MODE</string>
+     </property>
+    </widget>
+    <widget class="rad::StatusLed" name="ledMachineMode">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>70</y>
+       <width>150</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>MACHINE MODE</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox_5">
+    <property name="geometry">
+     <rect>
+      <x>1300</x>
+      <y>180</y>
+      <width>250</width>
+      <height>340</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>CSRs</string>
+    </property>
+    <property name="flat">
+     <bool>false</bool>
+    </property>
+    <property name="checkable">
+     <bool>false</bool>
+    </property>
+    <widget class="QTableWidget" name="tblCSRs">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>230</width>
+       <height>300</height>
+      </rect>
+     </property>
+     <property name="verticalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="rowCount">
+      <number>10</number>
+     </property>
+     <attribute name="horizontalHeaderVisible">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="horizontalHeaderHighlightSections">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>true</bool>
+     </attribute>
+     <attribute name="verticalHeaderVisible">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderShowSortIndicator" stdset="0">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderStretchLastSection">
+      <bool>false</bool>
+     </attribute>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <row/>
+     <column>
+      <property name="text">
+       <string>NAME</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>WORD</string>
+      </property>
+     </column>
+     <item row="0" column="0">
+      <property name="text">
+       <string>mstatus</string>
+      </property>
+     </item>
+     <item row="1" column="0">
+      <property name="text">
+       <string>mcause</string>
+      </property>
+     </item>
+     <item row="2" column="0">
+      <property name="text">
+       <string>mepc</string>
+      </property>
+     </item>
+     <item row="3" column="0">
+      <property name="text">
+       <string>mtval</string>
+      </property>
+     </item>
+     <item row="4" column="0">
+      <property name="text">
+       <string>mtvec</string>
+      </property>
+     </item>
+     <item row="5" column="0">
+      <property name="text">
+       <string>scause</string>
+      </property>
+     </item>
+     <item row="6" column="0">
+      <property name="text">
+       <string>sepc</string>
+      </property>
+     </item>
+     <item row="7" column="0">
+      <property name="text">
+       <string>stval</string>
+      </property>
+     </item>
+     <item row="8" column="0">
+      <property name="text">
+       <string>stvec</string>
+      </property>
+     </item>
+     <item row="9" column="0">
+      <property name="text">
+       <string>satp</string>
+      </property>
+     </item>
+    </widget>
+   </widget>
+   <widget class="QFrame" name="frame_4">
+    <property name="geometry">
+     <rect>
+      <x>1130</x>
+      <y>20</y>
+      <width>420</width>
       <height>30</height>
      </rect>
     </property>
-    <property name="text">
-     <string>RESET</string>
+    <property name="frameShape">
+     <enum>QFrame::Shape::StyledPanel</enum>
     </property>
+    <property name="frameShadow">
+     <enum>QFrame::Shadow::Raised</enum>
+    </property>
+    <widget class="QRadioButton" name="rad1ps">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>0</y>
+       <width>50</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>1 Hz</string>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="rad10ps">
+     <property name="geometry">
+      <rect>
+       <x>70</x>
+       <y>0</y>
+       <width>60</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>10 Hz</string>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="rad100ps">
+     <property name="geometry">
+      <rect>
+       <x>140</x>
+       <y>0</y>
+       <width>70</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>100 Hz</string>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="rad1kps">
+     <property name="geometry">
+      <rect>
+       <x>220</x>
+       <y>0</y>
+       <width>60</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>1 kHz</string>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="rad1mps">
+     <property name="geometry">
+      <rect>
+       <x>290</x>
+       <y>0</y>
+       <width>60</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>1 MHz</string>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="radmax">
+     <property name="geometry">
+      <rect>
+       <x>360</x>
+       <y>0</y>
+       <width>50</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>MAX</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
    </widget>
-   <widget class="QPushButton" name="btnSet">
+   <widget class="QGroupBox" name="groupBox_6">
     <property name="geometry">
      <rect>
-      <x>610</x>
-      <y>850</y>
-      <width>100</width>
-      <height>30</height>
+      <x>830</x>
+      <y>830</y>
+      <width>720</width>
+      <height>150</height>
      </rect>
     </property>
-    <property name="text">
-     <string>SET</string>
+    <property name="title">
+     <string>Execution</string>
     </property>
+    <widget class="rad::LabeledEdit" name="edCycle">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>211</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="labelText">
+      <string>CYCLE</string>
+     </property>
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+    <widget class="rad::LabeledEdit" name="edBreakpoint">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>70</y>
+       <width>210</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="labelText">
+      <string>BREAK</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btnSet">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>110</y>
+       <width>100</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>SET</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btnClear">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>110</y>
+       <width>100</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>CLEAR</string>
+     </property>
+    </widget>
+    <widget class="QTableWidget" name="tblTraps">
+     <property name="geometry">
+      <rect>
+       <x>230</x>
+       <y>20</y>
+       <width>480</width>
+       <height>120</height>
+      </rect>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <attribute name="horizontalHeaderCascadingSectionResizes">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="horizontalHeaderStretchLastSection">
+      <bool>false</bool>
+     </attribute>
+     <attribute name="verticalHeaderStretchLastSection">
+      <bool>true</bool>
+     </attribute>
+     <column>
+      <property name="text">
+       <string>Cycle</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Cause</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>EPC</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>TVAL</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Mode</string>
+      </property>
+      <property name="textAlignment">
+       <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+    </widget>
    </widget>
-   <widget class="QLabel" name="lbBreakpoint">
+   <widget class="QFrame" name="panelSim">
     <property name="geometry">
      <rect>
-      <x>460</x>
-      <y>880</y>
-      <width>100</width>
-      <height>30</height>
+      <x>20</x>
+      <y>20</y>
+      <width>640</width>
+      <height>960</height>
      </rect>
     </property>
-    <property name="text">
-     <string/>
+    <property name="font">
+     <font>
+      <family>Helvetica Neue</family>
+      <bold>true</bold>
+     </font>
     </property>
-   </widget>
-   <widget class="QLabel" name="lbInstr">
-    <property name="geometry">
-     <rect>
-      <x>340</x>
-      <y>790</y>
-      <width>100</width>
-      <height>21</height>
-     </rect>
+    <property name="styleSheet">
+     <string notr="true">#panelSim { background: #303030; border-radius: 6px; }</string>
     </property>
-    <property name="text">
-     <string>Instruction:</string>
+    <property name="frameShape">
+     <enum>QFrame::Shape::StyledPanel</enum>
     </property>
+    <property name="frameShadow">
+     <enum>QFrame::Shadow::Raised</enum>
+    </property>
+    <widget class="QFrame" name="panelScreen">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>10</y>
+       <width>620</width>
+       <height>561</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">#panelScreen { background: #1f1f1f; }</string>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Raised</enum>
+     </property>
+     <widget class="QPlainTextEdit" name="mmOUT">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>600</width>
+        <height>500</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <family>Menlo</family>
+        <pointsize>12</pointsize>
+        <bold>false</bold>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">background-color: #14100a;
+color: #ffb454;</string>
+      </property>
+      <property name="verticalScrollBarPolicy">
+       <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+      <property name="backgroundVisible">
+       <bool>false</bool>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="btnReset">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>520</y>
+        <width>100</width>
+        <height>30</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>⏻ </string>
+      </property>
+     </widget>
+     <widget class="rad::StatusLed" name="ledHd">
+      <property name="geometry">
+       <rect>
+        <x>566</x>
+        <y>525</y>
+        <width>40</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="state">
+       <enum>rad::StatusLed::State::Off</enum>
+      </property>
+      <property name="text">
+       <string>HD</string>
+      </property>
+     </widget>
+     <widget class="rad::StatusLed" name="ledRun">
+      <property name="geometry">
+       <rect>
+        <x>500</x>
+        <y>525</y>
+        <width>50</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="state">
+       <enum>rad::StatusLed::State::Off</enum>
+      </property>
+      <property name="text">
+       <string>RUN</string>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QFrame" name="panelFloppyBg">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>580</y>
+       <width>620</width>
+       <height>120</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">#panelFloppyBg { background: #1f1f1f; }</string>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Raised</enum>
+     </property>
+     <widget class="QFrame" name="panelFloppy1">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>295</width>
+        <height>100</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">#panelFloppy1 {Background: #404040;}</string>
+      </property>
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Shadow::Raised</enum>
+      </property>
+      <widget class="QFrame" name="panelFloppySlit">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>40</y>
+         <width>270</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">#panelFloppySlit {Background: #202020;}</string>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::Shape::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Shadow::Raised</enum>
+       </property>
+      </widget>
+      <widget class="rad::FileEdit" name="fileEditFloppyA">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>70</y>
+         <width>270</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">#fileEditFloppyA {}
+#field {background: #404040; border: none}</string>
+       </property>
+       <property name="mustExist">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QFrame" name="frame">
+       <property name="geometry">
+        <rect>
+         <x>110</x>
+         <y>30</y>
+         <width>70</width>
+         <height>40</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background: #1f1f1f;
+border:none</string>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::Shape::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Shadow::Raised</enum>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_2">
+       <property name="geometry">
+        <rect>
+         <x>270</x>
+         <y>0</y>
+         <width>20</width>
+         <height>30</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <family>JetBrainsMono Nerd Font Mono</family>
+         <pointsize>16</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>A:</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QFrame" name="panelFloppy2">
+      <property name="geometry">
+       <rect>
+        <x>315</x>
+        <y>10</y>
+        <width>295</width>
+        <height>100</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">#panelFloppy2 {Background: #404040;}</string>
+      </property>
+      <property name="frameShape">
+       <enum>QFrame::Shape::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Shadow::Raised</enum>
+      </property>
+      <widget class="QFrame" name="panelFloppySlit_2">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>40</y>
+         <width>270</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">#panelFloppySlit_2 {Background: #202020;}</string>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::Shape::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Shadow::Raised</enum>
+       </property>
+      </widget>
+      <widget class="rad::FileEdit" name="fileEditFloppyB">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>70</y>
+         <width>270</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">#fileEditFloppyA {}
+#field {background: #404040; border: none}</string>
+       </property>
+       <property name="mustExist">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QFrame" name="frame_2">
+       <property name="geometry">
+        <rect>
+         <x>110</x>
+         <y>30</y>
+         <width>70</width>
+         <height>40</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background: #1f1f1f;
+border:none</string>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::Shape::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Shadow::Raised</enum>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_3">
+       <property name="geometry">
+        <rect>
+         <x>270</x>
+         <y>0</y>
+         <width>20</width>
+         <height>30</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <family>JetBrainsMono Nerd Font Mono</family>
+         <pointsize>16</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>B:</string>
+       </property>
+      </widget>
+     </widget>
+    </widget>
+    <widget class="QLCDNumber" name="lcdNumber">
+     <property name="geometry">
+      <rect>
+       <x>530</x>
+       <y>710</y>
+       <width>100</width>
+       <height>30</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QFrame" name="frame_3">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>810</y>
+       <width>341</width>
+       <height>130</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background: qlineargradient(spread: repeat, x1:0, y1:0, x2:0.05, y2:0, stop:0 #2f2f2f, stop: 0.5 #3f3f3f, stop:0.501 #0f0f0f, stop:1 #0f0f0f);
+border:none</string>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Raised</enum>
+     </property>
+    </widget>
    </widget>
   </widget>
  </widget>
  <customwidgets>
   <customwidget>
+   <class>rad::StatusLed</class>
+   <extends>QWidget</extends>
+   <header location="global">radcpp/StatusLed.hpp</header>
+  </customwidget>
+  <customwidget>
    <class>rad::LabeledEdit</class>
    <extends>QWidget</extends>
    <header location="global">radcpp/LabeledEdit.hpp</header>
+  </customwidget>
+  <customwidget>
+   <class>rad::FileEdit</class>
+   <extends>QWidget</extends>
+   <header location="global">radcpp/FileEdit.hpp</header>
   </customwidget>
  </customwidgets>
  <resources/>

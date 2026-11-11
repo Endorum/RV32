@@ -19,8 +19,14 @@ u32 CPU::mask(u16 idx) {
         case CSR_ADDR::timeh:   return 0x00000000;
 
         case CSR_ADDR::mstatus: 
-            return MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS_MASK | MSTATUS_MPP_MASK;
-
+            return    MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS_MASK | MSTATUS_MPP_MASK 
+                    | MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP;
+        
+        case CSR_ADDR::medeleg:
+            return ~(1U << 11);
+        
+        case CSR_ADDR::mideleg:
+            return 0x00000222;
 
     }
 }
@@ -40,15 +46,18 @@ void CPU::set_csr(u16 idx, u32 val) {
         csr[(u16)CSR_ADDR::mstatus] |= MSTATUS_FS_DIRTY; // set FS = 11 = dirty
         fcsr = (fcsr & ~0xFF) | (val & 0xFF);
     }
-    else if(idx == (u16)(CSR_ADDR::mtvec)){
+    
+    else if(idx == (u16)(CSR_ADDR::mtvec) || idx == (u16)(CSR_ADDR::stvec)){
 
         if((val & 0x3) >= 2){ // invalid / unhandled interrup modes
             csr[idx] = (val & ~0x3); // write mode = 0 instead
         }else{
             csr[idx] = val;
         }
-
-    }else if(idx == (u16)(CSR_ADDR::mstatus)){
+        
+    }
+    
+    else if(idx == (u16)(CSR_ADDR::mstatus)){
         // if MPP is = 2 -> invalid
         if(((u32)(val & MSTATUS_MPP_MASK) >> 11) == 0b10){
             val = (val & ~MSTATUS_MPP_MASK);
@@ -58,9 +67,12 @@ void CPU::set_csr(u16 idx, u32 val) {
             csr[idx] = (val & m) | (csr[idx] & ~m);  
         }
     } 
+    
+    else if(idx == (u16)(CSR_ADDR::sstatus)){
+        csr[(u16)(CSR_ADDR::mstatus)] = (val & SSTATUS_MASK_WRITE) | (csr[(u16)(CSR_ADDR::mstatus)] & ~SSTATUS_MASK_WRITE);
+    }
 
     else{
-    
         csr[idx] = (val & m) | (csr[idx] & ~m);
     }
   
@@ -70,23 +82,39 @@ u32 CPU::get_csr(u16 idx) const {
 
     if(idx == (u16)(CSR_ADDR::fflags)){
         return fcsr & 0x1F;
-    }else if(idx == (u16)(CSR_ADDR::frm)){
+    }
+    else if(idx == (u16)(CSR_ADDR::frm)){
         return (fcsr & 0xE0) >> 5;
-    }else if(idx == (u16)(CSR_ADDR::fcsr)){
+    }
+    else if(idx == (u16)(CSR_ADDR::fcsr)){
         return fcsr & 0xFF;
-    }else if(idx == (u16)(CSR_ADDR::mstatus)){
+    }
+    
+    else if(idx == (u16)(CSR_ADDR::mstatus)){
+        
         u32 v = csr[idx];
+        
         if(((v >> 13) & 0b11) == 0b11){ // <=> FS = 0b11 = dirty?
-            v |= (1u << 31); // set SD = 1;
+            v |= MSTATUS_SD_RV32; // set SD = 1;
         }
         return v; 
-    }else if(idx == (u16)(CSR_ADDR::mip)){
+        
+    }
+    
+    else if(idx == (u16)(CSR_ADDR::sstatus)){
+        return get_csr(CSR_ADDR::mstatus) & SSTATUS_MASK_READ;
+    }
+    
+    else if(idx == (u16)(CSR_ADDR::mip)){
         return clint->pending_mip();
-    }else if(idx == (u16)(CSR_ADDR::time)){
+    }
+    else if(idx == (u16)(CSR_ADDR::time)){
         return clint->get_time_lo();
-    }else if(idx == (u16)(CSR_ADDR::timeh)){
+    }
+    else if(idx == (u16)(CSR_ADDR::timeh)){
         return clint->get_time_hi();
     }
+    
 
     else{
         return csr[idx];
