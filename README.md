@@ -1,3 +1,6 @@
+<img width="1682" height="1144" alt="Bildschirmfoto 2026-11-11 um 22 36 32" src="https://github.com/user-attachments/assets/6d5af6a6-296f-4180-8276-69082cb90d8f" />
+
+
 # RV32 stack
 
 A RISC-V RV32 machine built from scratch: the emulator ("hardware") and the
@@ -68,3 +71,8 @@ emulator/build/rv32emu -headless -firmware=software/build/firmware/rom.bin \
 `emulator/build/rv32emu` without arguments lists all options.
 
 Toolchain: Homebrew `riscv64-elf-*`; override with `RISCV_PREFIX=...`.
+
+P.S. I only used Claude for committing as I couldn't be bothered to do so.
+The Emulator, Firmware and OS is written entirely by me. 
+
+The Project was build in my own IDE (RAD C++) which was vibe coded.
