@@ -1,4 +1,5 @@
 #include "kstdio.h"
+#include "mm_layout.h"
 #include "panic.h"
 #include "page.h"
 
@@ -7,10 +8,15 @@ uint32_t free_pages = 0;
 
 void page_init(){
 
-    kprintf("page init...\n");
+    kprintf("page init", PAGES_START);
 
+    int i=0;
     for(uint32_t ptr=PAGES_START; ptr < PAGES_END; ptr += PAGE_SIZE){
         free_page((void*) ptr);
+        
+        if(i % ((PAGES_SIZE / PAGE_SIZE) / 3) == 0) kprintf(".");
+        
+        i++;
     }
 
     uint32_t exp = (PAGES_SIZE / PAGE_SIZE);
@@ -18,6 +24,8 @@ void page_init(){
         kprintf("page_init failed, expected %d free pages, got %d\n", exp, free_pages);
         panic();
     }
+    
+    kprintf("Done. PAGE_START: %08X\n", PAGES_START);
 
 }
 

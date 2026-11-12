@@ -8,7 +8,8 @@
 
 #include "kstring.h"
 
-#include "arch.h"
+#include "cpu.h"
+#include "mem.h"
 
 #include "loader.h"
 
@@ -482,6 +483,10 @@ int shell(trap_frame_t* tf){
 
     else if(strcmp(cmd, "boot") == 0){
         boot_kernel();        
+    }
+    
+    else {
+        kprintf("unknown command '%s'\n", cmd);
     }
     
     

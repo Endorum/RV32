@@ -4,7 +4,8 @@
 #include "kstdio.h"
 #include "csr.h"
 
-#include "arch.h"
+#include "cpu.h"
+#include "mem.h"
 #include "panic.h"
 #include "trap.h"
 

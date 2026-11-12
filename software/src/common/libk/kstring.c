@@ -342,18 +342,18 @@ int memcmp(const void *cs, const void *ct, size_t count)
 	int res = 0;
 
 
-	if (count >= sizeof(unsigned long)) {
-		const unsigned long *u1 = cs;
-		const unsigned long *u2 = ct;
-		do {
+	// if (count >= sizeof(unsigned long)) {
+	// 	const unsigned long *u1 = cs;
+	// 	const unsigned long *u2 = ct;
+	// 	do {
             
-			u1++;
-			u2++;
-			count -= sizeof(unsigned long);
-		} while (count >= sizeof(unsigned long));
-		cs = u1;
-		ct = u2;
-	}
+	// 		u1++;
+	// 		u2++;
+	// 		count -= sizeof(unsigned long);
+	// 	} while (count >= sizeof(unsigned long));
+	// 	cs = u1;
+	// 	ct = u2;
+	// }
 
 	for (su1 = cs, su2 = ct; 0 < count; ++su1, ++su2, count--)
 		if ((res = *su1 - *su2) != 0)

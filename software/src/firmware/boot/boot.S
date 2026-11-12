@@ -2,10 +2,6 @@
 // a valid C envirtoment is created
 // belongs in own section .text.init
 
-
-
-
-
 .section .text.init
 .global _start
 _start:

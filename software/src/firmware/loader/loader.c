@@ -1,10 +1,13 @@
 #include "loader.h"
 #include "kstdio.h"
-#include "arch.h"
+#include "cpu.h"
+#include "mem.h"
+#include "boot_image.h"
 #include "memory_map.h"
 #include "ram_layout.h"
 #include "panic.h"
 #include "kstring.h"
+#include <stdint.h>
 
 
 __attribute__((noreturn))
@@ -27,9 +30,12 @@ void enter_kernel(uint32_t entry, uint32_t hartid, uint32_t bootinfo){
 void boot_kernel() {
 
     kprintf("Boot sequence...\n");
-    kprintf("looking for kernel image at 0x%08X\n", HD_START);
+    
+    uint32_t kernel_loc = HD_KERNEL_START;
+    
+    kprintf("looking for kernel image at 0x%08X\n", kernel_loc);
 
-    uint32_t magic = read_word(HD_START);
+    uint32_t magic = read_word(kernel_loc);
     kprintf("Magic: %08X\n", magic);
     
     if(magic != 0x534F5652){
@@ -37,7 +43,7 @@ void boot_kernel() {
         return;
     } 
     
-    uint32_t size  = read_word(HD_START + 4);
+    uint32_t size  = read_word(kernel_loc + 4);
     kprintf("Kernel image size: %d Bytes\n", size);
 
     if(size == 0 || size > RAM_KERN_SIZE){
@@ -46,7 +52,7 @@ void boot_kernel() {
     }
 
     kprintf("Loading Kernel Image (%d Bytes)...", size);
-    memcpy((void*)RAM_KERN_START, (void*)(HD_START + 8), size);   
+    memcpy((void*)RAM_KERN_START, (void*)(kernel_loc + 8), size);   
     kprintf("Done\n");
 
     // kernel image is now loaded at RAM_KERN_START entry should be at RAM_KERN_START

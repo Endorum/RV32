@@ -22,6 +22,7 @@ rv32_image(rom
   LIBS                                    # shared code, linked as needed
     "${RV32_SW_COMMON}/libk"              # kprintf, mem*, str*
     "${RV32_SW_COMMON}/drivers/uart"
+    "${RV32_SW_COMMON}/drivers/hd"
     "${RV32_SW_COMMON}/arch/rv32"         # csr.h, tf.h, trap.S (trap_entry)
   INCLUDES
     "${RV32_PLATFORM}"

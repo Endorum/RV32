@@ -57,11 +57,3 @@ void write_pc(uint32_t value);
 void jump_to(uint32_t pc, uint32_t sp);
 
 void dump();
-
-
-
-uint8_t read_byte(uint32_t addr);
-uint32_t read_word(uint32_t addr);
-
-void    write_byte(uint32_t addr, uint8_t value);
-void write_word(uint32_t addr, uint32_t word);

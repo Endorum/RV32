@@ -2,13 +2,13 @@
 #include "uart.h"
 
 #include "panic.h"
-#include "arch.h"
+#include "cpu.h"
 #include "csr.h"
 #include "kstdio.h"
 
 #include "stdint.h"
 
-#include "arch.h"
+#include "cpu.h"
 
 
 

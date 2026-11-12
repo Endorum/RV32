@@ -21,12 +21,13 @@ void kmalloc_dump(){
 
 void kmalloc_init(){
 
-    kprintf("kmalloc init...\n");
+    kprintf("kmalloc init...");
 
     free_block_list = (struct Block*)(HEAP_START);
     free_block_list->next = NULL;
     free_block_list->size = HEAP_SIZE;
-
+    
+    kprintf("Done\n");
 }
 
 void *kmalloc(size_t size) {

@@ -27,6 +27,11 @@ _start:
     mv a0, t0
     mv a1, t1
     call kmain
+    
+    // enter inf loop
+loop:
+    wfi
+    j loop
 
     // jump to 0x0 = starting the firmware shell again
     li t0, 0
