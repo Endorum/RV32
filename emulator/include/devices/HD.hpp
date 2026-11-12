@@ -30,7 +30,7 @@ private:
 
     bool setup = false;
 
-    u32 delay_mus = 100;
+    u32 delay_mus = 0;
     void delay();
 };
 

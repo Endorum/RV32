@@ -59,7 +59,7 @@ private:
     
     uint32_t showAddress;
     uint32_t getAddressCobox();
-    void updateMemoryView(bool goBtn);
+    void updateMemoryView();
     
     void updateCSRs();
     void updateFloppyDisks();
@@ -74,7 +74,7 @@ private slots:
     void btnResetClicked();
     void btnSetClicked();
     void comboMemoryViewCurrentIndexChanged(int index);
-    void btnGotoClicked();
+    void btnTranslateClicked();
 
 
 

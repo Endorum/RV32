@@ -1,5 +1,6 @@
 #include "BUS.hpp"
 #include <ERROR.hpp>
+#include <cstdarg>
 
 void BUS::addDevice(Device& dev) {
 
@@ -71,3 +72,5 @@ std::string BUS::str() const {
     }
     return out;
 }
+
+

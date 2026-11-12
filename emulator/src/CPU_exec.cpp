@@ -152,6 +152,11 @@ void CPU::exec_fence(){
     // NOP for now
 }
 
+bool CPU::csr_is_read_only(u16 csr_addr) const{
+    // checks if bits 10 and 11 are set in the csr addr
+    return ( (csr_addr & 0xC00) >> 10 ) == 0b11;
+}
+
 void CPU::exec_system(){
     if(instr.op == Op::ECALL){
         switch(priv){
@@ -185,15 +190,29 @@ void CPU::exec_system(){
     }
 
     else if(instr.op >= Op::CSRRW && instr.op <= Op::CSRRCI) {
-    
+        
         u16 csr_addr = instr.imm & 0xFFF;
+        
+        // check embedded priv level against current priv level
+        if((u8)priv < (u8)((csr_addr & 0x300) >> 8)){
+            enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+            return;
+        }
+    
         u32 old_csr = get_csr(csr_addr);
         u8 uimm = instr.rs1;
-
+        
+        bool writes = (instr.op == Op::CSRRW || instr.op == Op::CSRRWI) || instr.rs1 != 0;
+        
+        if(writes && csr_is_read_only(csr_addr)){
+            enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+            return;
+        }
+        
         switch(instr.op){
             default: Error<std::runtime_error>("Invalid op type (should not happen)");
 
-            case Op::CSRRW:   
+            case Op::CSRRW:
                 set_csr(csr_addr, rs1_value);
                 break;
         
@@ -204,21 +223,21 @@ void CPU::exec_system(){
 
             case Op::CSRRC:   
                 if(instr.rs1 == 0) break;
-                set_csr(csr_addr, old_csr & ~rs1_value);
+                set_csr(csr_addr, old_csr & ~rs1_value);    
                 break;
 
             case Op::CSRRWI:   
-                set_csr(csr_addr, uimm);
+                set_csr(csr_addr, uimm);    
                 break;
         
             case Op::CSRRSI:   
                 if(instr.rs1 == 0) break;
-                set_csr(csr_addr, old_csr | uimm);
+                set_csr(csr_addr, old_csr | uimm);    
                 break;
 
             case Op::CSRRCI:   
                 if(instr.rs1 == 0) break;
-                set_csr(csr_addr, old_csr & ~uimm);
+                set_csr(csr_addr, old_csr & ~uimm);    
                 break;
 
         }
@@ -232,7 +251,7 @@ void CPU::exec_system(){
             return;
         }
         
-        Error<std::runtime_error>("TODO: SFENCE_VMA\n");
+        sfence_vma();
         return;
     }
   
@@ -271,10 +290,10 @@ void CPU::exec_atomic(){
         return;
 
     }else{
-        u32 value = load(rs1_value, WORD);
+        u32 value = load(rs1_value, WORD, ACCESS::STORE);
         u32 ret_val = 0;
 
-        if(instr.op >= Op::AMOSWAP && instr.op <= Op::AMOMAXU) set_reg(instr.rd, value);
+        
 
         switch(instr.op){
             default: Error<std::runtime_error>("Invalid op type (should not happen)");
@@ -319,7 +338,8 @@ void CPU::exec_atomic(){
         }
 
         store(rs1_value, WORD, ret_val);
-
+        if(instr.op >= Op::AMOSWAP && instr.op <= Op::AMOMAXU) set_reg(instr.rd, value);
+        
     }
 }
 

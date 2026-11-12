@@ -46,7 +46,7 @@ MainForm::MainForm(const Config& config, QWidget* parent) : QMainWindow(parent),
     connect(btnReset, &QPushButton::clicked, this, &MainForm::btnResetClicked);
     connect(btnSet, &QPushButton::clicked, this, &MainForm::btnSetClicked);
     connect(comboMemoryView, &QComboBox::currentIndexChanged, this, &MainForm::comboMemoryViewCurrentIndexChanged);
-    connect(btnGoto, &QPushButton::clicked, this, &MainForm::btnGotoClicked);
+    connect(btnTranslate, &QPushButton::clicked, this, &MainForm::btnTranslateClicked);
     // connect(sdlCanvas, &rad::SdlCanvas::render, this, &MainForm::updateScreen);
     
     m_clock.setTimerType(Qt::PreciseTimer);
@@ -205,14 +205,20 @@ uint32_t MainForm::getAddressCobox(){
     return 0;
 }
 
-void MainForm::updateMemoryView(bool goBtn){
+void MainForm::updateMemoryView(){
     
     uint32_t addr;
     
-    if(!goBtn)
+    if(!cbShow->isChecked()){
         addr = getAddressCobox();
-    else
-        addr = showAddress;
+    }else{
+        try{
+            addr = std::stoi((edMemoryAddress->text()).toStdString(), nullptr, 16);
+        } catch(std::exception){
+            addr = 0;
+        }
+    }
+        
     
     
     int rowCount = tblMemory->rowCount();
@@ -333,7 +339,7 @@ void MainForm::updateState() {
     }
     
     updateDisass();
-    updateMemoryView(false);
+    updateMemoryView();
     
     updateFloppyDisks();
     
@@ -428,18 +434,8 @@ void MainForm::btnSetClicked()
 
 
 void MainForm::comboMemoryViewCurrentIndexChanged(int index) {
-    updateMemoryView(false);
+    updateMemoryView();
     edMemoryAddress->clear();
-}
-
-void MainForm::btnGotoClicked() {
-    try {
-        showAddress = std::stoi((edMemoryAddress->text()).toStdString(), nullptr, 16);
-    } catch (const std::invalid_argument&) {
-        showAddress = 0;
-    }
-    
-    updateMemoryView(true);
 }
 
 bool MainForm::eventFilter(QObject* watched, QEvent* event) {
@@ -472,4 +468,28 @@ void MainForm::updateTickRate() {
     if(rad1mps->isChecked())    {targetRate = 1000000; return;}
     if(radmax->isChecked())     {targetRate = UINT32_MAX; return;}
     targetRate = UINT_MAX;
+}
+
+void MainForm::btnTranslateClicked() {
+    if(edTranslate->text().isEmpty()) return;
+    
+    QString contents = edTranslate->text();
+    edTranslate->clear();
+        
+    std::string line;
+    
+    try {
+        uint32_t word = std::stoi(contents.toStdString(), nullptr, 16);
+        Instruction instr = decode(word, 0);
+
+        line = disassemble(instr, false);
+    } catch (std::exception) {
+        line = "";
+    }
+    
+    
+    
+
+    
+    edTranslate->setText( QString::fromStdString(line) );
 }

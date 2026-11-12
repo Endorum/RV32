@@ -61,6 +61,8 @@ struct CPU_STATE{
     Instruction current_instr;
 };
 
+enum class ACCESS : u8 { FETCH, LOAD, STORE };
+
 class CPU{
 public:
     CPU() = default;
@@ -133,14 +135,21 @@ private:
     void set_csr(u16 idx, u32 val);
     void set_csr(CSR_ADDR idx, u32 val) { set_csr(static_cast<u16>(idx), val); }
     void set_csr_raw(CSR_ADDR idx, u32 val) { csr[(u16)idx] = val; }
+    
+    bool csr_is_read_only(u16 csr_addr) const;
   
     u32 get_csr(u16 idx) const;
     u32 get_csr(CSR_ADDR idx) const { return get_csr( static_cast<u16>(idx)); }
     u32 get_csr_raw(CSR_ADDR idx) const { return csr[(u16)idx]; }
 
     void store(u32 addr, u8 size, u64 val);
-    u64  load(u32 addr, u8 size);
-
+    u64  load(u32 addr, u8 size, ACCESS access = ACCESS::LOAD);
+    
+    // translate a virtual address to a physical address
+    u32 translate(u32 v_addr, ACCESS access);
+    
+    [[noreturn]] void page_fault(u32 addr, ACCESS access);
+ 
     u64 nanbox(u32 val);
 
     void halt_if_deadlock();
@@ -196,6 +205,8 @@ private:
     
     void mret();  
     void sret();
+    
+    void sfence_vma();
 
 
     /* RV32I */

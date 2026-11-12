@@ -20,7 +20,8 @@ u32 CPU::mask(u16 idx) {
 
         case CSR_ADDR::mstatus: 
             return    MSTATUS_MIE | MSTATUS_MPIE | MSTATUS_FS_MASK | MSTATUS_MPP_MASK 
-                    | MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP;
+                    | MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP 
+                    | MSTATUS_MPRV | MSTATUS_SUM | MSTATUS_MXR | MSTATUS_TVM | MSTATUS_TSR;
         
         case CSR_ADDR::medeleg:
             return ~(1U << 11);

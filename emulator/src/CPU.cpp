@@ -32,8 +32,8 @@ void CPU::reset(){
     // clear fcsr
     fcsr = 0x0;
 
-    // done in csr = 0x00000000 already
-    // cycle = 0;
+
+    
     // clear instr
     instr = {};
 
@@ -51,7 +51,10 @@ void CPU::reset(){
         MISA_EXT_M |
         MISA_EXT_A |
         MISA_EXT_F |
-        MISA_EXT_D;
+        MISA_EXT_D |
+        MISA_EXT_S |
+        MISA_EXT_U
+    ;
 
     // MPP liest ab reset immer 3 (= M-Mode)
     // ACHTUNG: für U Mode muss das wieder geändert werden!
@@ -95,13 +98,13 @@ void CPU::step(){
     // fetch...
     u32 word = 0;
     try{
-        word = load(pc, WORD);
+        word = load(pc, WORD, ACCESS::FETCH);
     }
     catch (const TrapException& exc){
         if(exc.get_code() == EXCEPTION_CODE::LOAD_ACCESS_FAULT){
             enter_exception(pc, EXCEPTION_CODE::INSTR_ACCESS_FAULT, exc.get_tval());
         }else{
-            enter_exception(pc, exc.get_code(), word);
+            enter_exception(pc, exc.get_code(), exc.get_tval());
         }
         return;
     
@@ -264,31 +267,174 @@ void CPU::set_mpp_priv(PRIV_LEVEL level) {
     set_csr_raw(CSR_ADDR::mstatus, (get_csr(CSR_ADDR::mstatus) & ~(MSTATUS_MPP_MASK)) | (((u32)level) << 11) );
 }
 
+
+
 void CPU::store(u32 addr, u8 size, u64 val){
     if(!bus) Error<std::runtime_error>("BUS not assigned");
-    last_addr_used = addr;
+    
+    u32 paddr = translate(addr, ACCESS::STORE);
+    last_addr_used = paddr;
 
     if(size == DOUBLE){
-        bus->store(addr, WORD, (val & 0x00000000FFFFFFFF));
-        bus->store(addr + 4,     WORD, (val >> 32));
+        bus->store(paddr, WORD, (val & 0x00000000FFFFFFFF));
+        bus->store(paddr + 4,     WORD, (val >> 32));
     }else
-        bus->store(addr, size, val);
+        bus->store(paddr, size, val);
 }
 
-u64 CPU::load(u32 addr, u8 size) {
+
+u64 CPU::load(u32 addr, u8 size, ACCESS access) {
     if(!bus) Error<std::runtime_error>("BUS not assigned");
-    last_addr_used = addr;
+        
+    u32 paddr = translate(addr, access);
+    last_addr_used = paddr;
 
     if(size == DOUBLE){
-        u64 val = (((u64)bus->load(addr + 4, WORD)) << 32);
-                val |= bus->load(addr, WORD);
+        u64 val = (((u64)bus->load(paddr + 4, WORD)) << 32);
+                val |= bus->load(paddr, WORD);
         return val;
     }else
-        return bus->load(addr, size);
+        return bus->load(paddr, size);
   
 }
 
 
+
+
+// SATP:
+// xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx 
+// MAAA AAAA AAPP PPPP PPPP PPPP PPPP PPPP
+// ADDRESS:
+// xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx 
+// AAAA AAAA AABB BBBB BBBB OOOO OOOO OOOO
+
+u32 CPU::translate(u32 v_addr, ACCESS access) {
+
+    u32 satp = get_csr_raw(CSR_ADDR::satp);
+
+    // address is always physical in machine mode
+    if(priv == PRIV_LEVEL::MACHINE) return v_addr;
+
+    // translation mode
+    bool mode = (satp & 0x80000000) >> 31;  
+
+    // 0 = Bare -> no translation, 1 = Sv32
+    if(mode == false) return v_addr;
+
+    // u32 ASID  = (satp & 0x7FC00000) >> 22;  // process ID
+    u32 PPN   = (satp & 0x003FFFFF);        // pagenumber of root page
+
+    // Virtual Address fields
+    u32 vpn_1   = (v_addr >> 22) & 0x3FF;
+    u32 vpn_0   = (v_addr >> 12) & 0x3FF;
+    u32 offset  = v_addr & 0xFFF; 
+
+    // Physical address at root Table
+    u32 a = PPN * 4096;
+
+    // level 1 = top, 0 = bottom
+    int i = 1; 
+    
+step2:
+    // read page table entry
+    u32 pte = bus->load(a + (i ? vpn_1 : vpn_0) * 4, WORD);
+    
+    // PTE fields
+    // 1111 1111 1111 0000 0000 0000 0000 0000
+    u32 ppn_1 = (pte & 0xFFF00000) >> 20;
+    // 0000 0000 0000 1111 1111 1100 0000 0000
+    u32 ppn_0 = (pte & 0x000FFC00) >> 10;
+    
+    // 0000 0000 0000 0000 0000 0011 0000 0000
+    // u8 RSW    = (pte & 0x00000300) >> 8;
+    
+    // 1111 1111 1111 1111 1111 1100 0000 0000
+    u32 pte_PPN = pte >> 10;
+    
+    // 0000 0000 0000 0000 0000 0000 DAGU XWRV
+    bool D = (pte & 0x00000080);
+    bool A = (pte & 0x00000040);
+    // bool G = (pte & 0x00000020);
+    bool U = (pte & 0x00000010);
+    bool X = (pte & 0x00000008);
+    bool W = (pte & 0x00000004);
+    bool R = (pte & 0x00000002);
+    bool V = (pte & 0x00000001);
+    
+    if(V == false || (R == false && W == true)){
+        page_fault(v_addr, access);
+    }
+    
+    if(R == false && X == false){
+        // no leaf, but pointer to next table
+        i = i - 1;
+        
+        if(i < 0){
+            page_fault(v_addr, access);
+        }
+        
+        a = pte_PPN * 4096;
+        goto step2;
+        
+    }else{
+        // found a leaf
+        if(access == ACCESS::FETCH)
+        if(X == false) page_fault(v_addr, access);
+            
+        if(access == ACCESS::LOAD)
+        if(!(R || (X && (get_csr_raw(CSR_ADDR::mstatus) & MSTATUS_MXR)))) page_fault(v_addr, access);
+            
+        if(access == ACCESS::STORE)
+        if(W == false) page_fault(v_addr, access);
+            
+        if(priv == PRIV_LEVEL::USER){
+            if(U == false) {
+                page_fault(v_addr, access);
+            }
+        }
+        
+            
+        if(priv == PRIV_LEVEL::SUPERVISOR){
+            if(U == true){
+                if(access == ACCESS::FETCH){
+                    page_fault(v_addr, access);
+                }
+                else {
+                    if(!(get_csr_raw(CSR_ADDR::mstatus) & MSTATUS_SUM)){
+                        page_fault(v_addr, access);
+                    }
+                }
+            } 
+        }
+        
+    }
+    
+    if(i == 1 && ppn_0 != 0){
+        page_fault(v_addr, access);
+    }
+    
+    if(A == 0 || (access == ACCESS::STORE && D == false)){
+        page_fault(v_addr, access);
+    }
+    
+    u32 p_addr = 0;
+    
+    if(i == 0)      p_addr = (pte_PPN * 4096) + offset;
+    else if(i == 1) p_addr = (ppn_1 * 0x400000 + vpn_0 * 4096 + offset); // superpage
+    
+    
+    return p_addr;
+}
+
+void CPU::page_fault(u32 addr, ACCESS access){
+    
+    
+    if(access == ACCESS::FETCH) throw TrapException(EXCEPTION_CODE::INSTR_PAGE_FAULT, addr);
+    if(access == ACCESS::LOAD)  throw TrapException(EXCEPTION_CODE::LOAD_PAGE_FAULT, addr);    
+    if(access == ACCESS::STORE) throw TrapException(EXCEPTION_CODE::STORE_PAGE_FAULT, addr);
+        
+    Error<std::runtime_error>("reached unreachable");
+}
 
 
 void CPU::halt_if_deadlock() {
@@ -522,6 +668,9 @@ void CPU::mret() {
     mstatus = (mstatus & ~(MSTATUS_MIE)) | (mpie << 3); // MIE <- MPIE restore
     mstatus |= (MSTATUS_MPIE);                          // MPIE <- 1
     mstatus = (mstatus & ~(MSTATUS_MPP_MASK)) | (MSTATUS_MPP_U); // set U mode in mpp (do nothing because u=0)
+    
+    if((PRIV_LEVEL)pl < PRIV_LEVEL::MACHINE)
+        mstatus = (mstatus & ~(MSTATUS_MPRV));          // set MPRV <- 0
 
     set_csr_raw(CSR_ADDR::mstatus, mstatus);
 
@@ -537,6 +686,11 @@ void CPU::sret(){
     
     u32 mstatus = get_csr_raw(CSR_ADDR::mstatus);
     
+    if(priv == PRIV_LEVEL::SUPERVISOR && mstatus & MSTATUS_TSR){
+        enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+        return;
+    }
+    
     // 0(U) or 1(S).
     u8 pl = (mstatus & MSTATUS_SPP) >> 8;
 
@@ -548,10 +702,23 @@ void CPU::sret(){
     mstatus |= (MSTATUS_SPIE);                          // set SPIE = 1
     mstatus = (mstatus & ~(MSTATUS_SPP));               // set SPP <- 0
     
+    mstatus = (mstatus & ~(MSTATUS_MPRV));              // set MPRV <- 0
+    
     set_csr_raw(CSR_ADDR::mstatus, mstatus);
     
     pc = get_csr(CSR_ADDR::sepc) & ~0x1;
     
+}
+
+void CPU::sfence_vma(){
+
+    u32 mstatus = get_csr_raw(CSR_ADDR::mstatus);
+    
+    if(priv == PRIV_LEVEL::SUPERVISOR && (mstatus & MSTATUS_TVM)){
+        enter_exception(instr.addr, EXCEPTION_CODE::ILLEGAL_INSTRUCTION, instr.word);
+        return;
+    }
+        
 }
 
 CPU_STATE CPU::get_state() {
@@ -580,4 +747,6 @@ CPU_STATE CPU::get_state() {
     
         return state;
 }
+
+
 
